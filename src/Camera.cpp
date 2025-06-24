@@ -2,6 +2,8 @@
 
 #include "Camera.hpp"
 
+#include <iostream>
+
 Camera::Camera() {
     update_camera_position();
 }
@@ -28,7 +30,7 @@ void Camera::rotate(float dx, float dy) {
 
         // Limit vertical orbiting
         float new_pitch = pitch + rotation_sensitivity * dy;
-        if (new_pitch + dy < 89.0f && new_pitch + dy > -89.0f) {
+        if (new_pitch + dy <= 90.0f && new_pitch + dy >= -90.0f) {
             pitch = new_pitch;
         } 
     }
@@ -59,8 +61,12 @@ void Camera::zoom(float dr) {
  */
 void Camera::pan(float dx, float dy) {
     glm::vec3 camera_direction = get_facing_direction();
-    glm::vec3 right = glm::cross(camera_direction, up);
-    glm::vec3 above = glm::cross(right, camera_direction);
+    glm::vec3 right;
+    right = glm::normalize(glm::cross(up, camera_direction));
+    if (std::abs(glm::dot(up, -camera_direction) - 1.0f) < 1e-6)
+        right = glm::vec3(1.0f, 0.0f, 0.0f);
+
+    glm::vec3 above = glm::normalize(glm::cross(right, camera_direction));
 
     orbit_position += right * dx * pan_sensitivity;
     orbit_position += above * dy * pan_sensitivity;
@@ -77,7 +83,7 @@ glm::mat4 Camera::get_view_projection_matrix() {
     if (perspective) {
         proj = glm::perspective(fov, aspect_ratio, z_near, z_far);
     } else {
-        proj = glm::ortho(-aspect_ratio * radius, aspect_ratio * radius, -1.0f * radius, 1.0f * radius, z_near, z_far);
+        proj = glm::ortho(-aspect_ratio * radius, aspect_ratio * radius, -1.0f * radius, 1.0f * radius, -100.0f, 100.0f);
     }
     return proj * view;
 }
@@ -87,6 +93,13 @@ glm::mat4 Camera::get_view_projection_matrix() {
  */
 glm::vec3 Camera::get_facing_direction() {
     return glm::normalize(orbit_position - camera_position);
+}
+
+/**
+ * Return the current position around which the camera is orbiting
+ */
+glm::vec3 Camera::get_orbit_position() {
+    return orbit_position;
 }
 
 /**
@@ -113,6 +126,7 @@ void Camera::set_orbit_position(glm::vec3 new_orbit_position) {
  */
 void Camera::set_perspective() {
     perspective = true;
+    radius = 10.0f;
     update_camera_position();
 }
 
@@ -123,7 +137,7 @@ void Camera::set_perspective() {
 void Camera::set_orthographic() {
     perspective = false;
     yaw = 90.0f;
-    pitch = 0.0f;
+    pitch = 89.999f;
     update_camera_position();
 }
 

@@ -16,6 +16,7 @@ public:
 
     glm::mat4 get_view_projection_matrix();
     glm::vec3 get_facing_direction();
+    glm::vec3 get_orbit_position();
 
     void set_aspect_ratio(float new_aspect_ratio);
     void set_orbit_position(glm::vec3 new_orbit_position);

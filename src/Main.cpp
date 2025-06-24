@@ -10,8 +10,10 @@
 
 #include "Shader.hpp"
 #include "Camera.hpp"
+#include "GridVisual.hpp"
 
 #include <iostream>
+#include <memory>
 
 unsigned int WINDOW_WIDTH = 1000;
 unsigned int WINDOW_HEIGHT = 800;
@@ -25,6 +27,10 @@ void process_input(GLFWwindow* window);
 
 Camera camera;
 bool mouse = true;
+
+std::unique_ptr<Shader> default_shader;
+std::unique_ptr<Shader> solid_color_shader;
+std::unique_ptr<Shader> vertex_color_shader;
 
 int main() {
 	float vertices[] = {
@@ -96,11 +102,15 @@ int main() {
 	stbi_image_free(data);
 	float brightness = 1.0f;
 
+    default_shader = std::make_unique<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"); 
+    solid_color_shader = std::make_unique<Shader>("shaders/solid_color_vert.glsl", "shaders/solid_color_frag.glsl"); 
+    vertex_color_shader = std::make_unique<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"); 
+
+    GridVisual grid_visual;
+
     camera.set_aspect_ratio((float)WINDOW_WIDTH / WINDOW_HEIGHT);
-	Shader shader("shaders/default_vert.glsl", "shaders/default_frag.glsl");
-    shader.bind();
-	shader.set_int("tex", 0);
-    camera.set_orthographic();
+    default_shader->bind();
+	default_shader->set_int("tex", 0);
 
 	while (!glfwWindowShouldClose(window)) {
 		process_input(window);
@@ -112,15 +122,26 @@ int main() {
 		ImGui::NewFrame();
 
 		// ImGui Stuff Goes Here
-		ImGui::Begin("Menu");
-		ImGui::SliderFloat("Brightness", &brightness, 0.0f, 1.0f);
-		ImGui::End();
+		// ImGui::Begin("Menu");
+		// ImGui::SliderFloat("Brightness", &brightness, 0.0f, 1.0f);
+		// ImGui::End();
 
-		shader.bind();
-		shader.set_float("brightness", brightness);
+        vertex_color_shader->bind();
+        vertex_color_shader->set_mat4x4("model", glm::mat4(1.0f));
+        vertex_color_shader->set_mat4x4("view_proj", camera.get_view_projection_matrix());
+        grid_visual.draw_grid(*vertex_color_shader);
+
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+            solid_color_shader->bind();
+            solid_color_shader->set_mat4x4("view_proj", camera.get_view_projection_matrix());
+            grid_visual.draw_panning_locator(*solid_color_shader, camera.get_orbit_position());
+        }
+
+		default_shader->bind();
+		default_shader->set_float("brightness", brightness);
         glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
-        shader.set_mat4x4("model", model);
-        shader.set_mat4x4("view_proj", camera.get_view_projection_matrix());
+        default_shader->set_mat4x4("model", model);
+        default_shader->set_mat4x4("view_proj", camera.get_view_projection_matrix());
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, texture);
 
@@ -203,5 +224,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 	if (key == GLFW_KEY_O && action == GLFW_PRESS) {
         if (!mouse)
             camera->set_orthographic();            
+	}
+	if (key == GLFW_KEY_0 && action == GLFW_PRESS) {
+		if (!mouse)
+			camera->set_orbit_position(glm::vec3(0.0f));
 	}
 }
