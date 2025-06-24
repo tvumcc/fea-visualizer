@@ -2,8 +2,6 @@
 
 #include "Camera.hpp"
 
-#include <iostream>
-
 Camera::Camera() {
     update_camera_position();
 }

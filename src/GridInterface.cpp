@@ -1,11 +1,11 @@
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "GridVisual.hpp"
+#include "GridInterface.hpp"
 
 #include <vector>
 
-GridVisual::GridVisual() :
+GridInterface::GridInterface() :
     panning_locator_mesh("assets/sphere.obj")
 {
     for (int i = -grid_lines_per_quadrant; i <= grid_lines_per_quadrant; i++) {
@@ -50,19 +50,24 @@ GridVisual::GridVisual() :
     glEnableVertexAttribArray(1);
 }
 
-void GridVisual::draw_grid(Shader& shader) {
-    shader.bind();
+void GridInterface::draw(std::shared_ptr<Camera> camera, bool draw_panning_locator) {
+    // Draw Grid Lines
+    vertex_color_shader->bind();
+    vertex_color_shader->set_mat4x4("model", glm::mat4(1.0f));
+    vertex_color_shader->set_mat4x4("view_proj", camera->get_view_projection_matrix());
     glBindVertexArray(vertex_array);
     glDrawArrays(GL_LINES, 0, vertices.size() / 2);
-}
 
-void GridVisual::draw_panning_locator(Shader& shader, glm::vec3 position) {
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::translate(model, position);
-    model = glm::scale(model, glm::vec3(0.05f));
+    // Draw Panning Locator
+    if (draw_panning_locator) {
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, camera->get_orbit_position());
+        model = glm::scale(model, glm::vec3(0.05f));
 
-    shader.bind(); 
-    shader.set_mat4x4("model", model);
-    shader.set_vec3("object_color", panning_locator_color);
-    panning_locator_mesh.draw(shader, GL_TRIANGLES);
+        solid_color_shader->bind(); 
+        solid_color_shader->set_mat4x4("model", model);
+        solid_color_shader->set_mat4x4("view_proj", camera->get_view_projection_matrix());
+        solid_color_shader->set_vec3("object_color", panning_locator_color);
+        panning_locator_mesh.draw(*solid_color_shader, GL_TRIANGLES);
+    }
 }
