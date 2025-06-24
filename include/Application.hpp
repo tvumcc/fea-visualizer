@@ -18,7 +18,7 @@ public:
     GLFWwindow* window;
     unsigned int window_width = 1100, window_height = 800;
     unsigned int gui_width = 250;
-    bool mouse_activated = true;
+    bool gui_visible = true;
     Settings settings;
 
     std::shared_ptr<Camera> camera;

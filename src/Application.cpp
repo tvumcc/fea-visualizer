@@ -50,7 +50,7 @@ void Application::run() {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-        if (mouse_activated) render_gui();
+        if (gui_visible) render_gui();
         render();
 
 		ImGui::Render();
@@ -65,7 +65,7 @@ void Application::render_gui() {
     const ImGuiViewport *main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y));
 	ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
-    ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!mouse_activated ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+    ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
 
     if (ImGui::RadioButton("2D", &settings.viewing_mode, 0))
         camera->set_orthographic();
@@ -113,7 +113,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 	app->window_width = width;
 	app->window_height = height;
 
-    if (app->mouse_activated) {
+    if (app->gui_visible) {
         glViewport(app->gui_width, 0, width - app->gui_width, height);
         app->camera->set_aspect_ratio((float)(width - app->gui_width) / height);
     } else {
@@ -139,21 +139,21 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
 	last_x = (float)x;
 	last_y = (float)y;
 
-	if (!app->mouse_activated) {
-        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-            app->camera->pan(dx, dy);
-        } else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
-            app->camera->rotate(dx, dy);
-        }
-	}
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        app->camera->pan(dx, dy);
+    }
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+        app->camera->rotate(dx, dy);
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    } else {
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
 }
 void scroll_callback(GLFWwindow* window, double dx, double dy) {
     Application* app = (Application*)glfwGetWindowUserPointer(window); 
 
-    if (!app->mouse_activated) {
-        app->camera->zoom(dy);
-		app->camera->rotate(dx, 0);
-    }
+    app->camera->zoom(dy);
+    app->camera->rotate(dx, 0);
 }
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     Application* app = (Application*)glfwGetWindowUserPointer(window); 
@@ -162,20 +162,17 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         glfwSetWindowShouldClose(window, true);
     }
 	if (key == GLFW_KEY_E && action == GLFW_PRESS) {
-		app->mouse_activated = !app->mouse_activated;
+		app->gui_visible = !app->gui_visible;
         framebuffer_size_callback(window, app->window_width, app->window_height);
-		glfwSetInputMode(window, GLFW_CURSOR, app->mouse_activated ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+		glfwSetInputMode(window, GLFW_CURSOR, app->gui_visible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 	}
 	if (key == GLFW_KEY_P && action == GLFW_PRESS) {
-        if (!app->mouse_activated)
-            app->camera->set_perspective();            
+        app->camera->set_perspective();            
 	}
 	if (key == GLFW_KEY_O && action == GLFW_PRESS) {
-        if (!app->mouse_activated)
-            app->camera->set_orthographic();            
+        app->camera->set_orthographic();            
 	}
 	if (key == GLFW_KEY_0 && action == GLFW_PRESS) {
-		if (!app->mouse_activated)
-			app->camera->set_orbit_position(glm::vec3(0.0f));
+        app->camera->set_orbit_position(glm::vec3(0.0f));
 	}
 }
