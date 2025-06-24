@@ -15,6 +15,7 @@ include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/glfw/include
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/glm
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui
+	${CMAKE_CURRENT_SOURCE_DIR}/lib/tinyobjloader
 )
 
 add_compile_definitions(NO_TIMER ANSI_DECLARATORS TRILIBRARY)
@@ -39,6 +40,9 @@ add_executable(${CMAKE_PROJECT_NAME}
 
     # Triangle
     lib/triangle/triangle.cpp
+
+    # Tinyobjloader
+    lib/tinyobjloader/tiny_obj_loader.cc
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC ${OPENGL_LIBRARIES} glfw)
