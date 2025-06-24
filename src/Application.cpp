@@ -5,8 +5,8 @@
 #include "Application.hpp"
 
 Application::Application() {
-    init_opengl_window(1000, 800);
-    init_imgui();
+    init_opengl_window(window_width, window_height);
+    init_imgui("assets/NotoSans.ttf", 20);
 
     Meshes::load();
     Shaders::load();
@@ -30,7 +30,7 @@ void Application::Shaders::load() {
 }
 void Application::load() {
     camera = std::make_shared<Camera>(); 
-    camera->set_aspect_ratio((float)window_width / window_height);
+    framebuffer_size_callback(window, window_width, window_height);
 
     grid_interface = std::make_shared<GridInterface>();
     grid_interface->solid_color_shader = Application::Shaders::solid_color;
@@ -46,11 +46,11 @@ void Application::render() {
 }
 void Application::run() {
     while (!glfwWindowShouldClose(window)) {
-
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
+        if (mouse_activated) render_gui();
         render();
 
 		ImGui::Render();
@@ -59,6 +59,21 @@ void Application::run() {
 		glfwSwapBuffers(window);
 		glfwPollEvents();
     }
+}
+
+void Application::render_gui() {
+    const ImGuiViewport *main_viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y));
+	ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
+    ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!mouse_activated ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+
+    if (ImGui::RadioButton("2D", &settings.viewing_mode, 0))
+        camera->set_orthographic();
+    ImGui::SameLine();
+    if (ImGui::RadioButton("3D", &settings.viewing_mode, 1))
+        camera->set_perspective();
+
+    ImGui::End();
 }
 
 void Application::init_opengl_window(unsigned int window_width, unsigned int window_height) {
@@ -82,11 +97,12 @@ void Application::set_glfw_callbacks() {
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetKeyCallback(window, key_callback);
 }
-void Application::init_imgui() {
+void Application::init_imgui(const char* font_path, int font_size) {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 	io.IniFilename = NULL;
+    io.Fonts->AddFontFromFileTTF(font_path, font_size);
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 460");
@@ -94,11 +110,16 @@ void Application::init_imgui() {
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     Application* app = (Application*)glfwGetWindowUserPointer(window);
-
-	glViewport(0, 0, width, height);
 	app->window_width = width;
 	app->window_height = height;
-    app->camera->set_aspect_ratio((float)width / height);
+
+    if (app->mouse_activated) {
+        glViewport(app->gui_width, 0, width - app->gui_width, height);
+        app->camera->set_aspect_ratio((float)(width - app->gui_width) / height);
+    } else {
+        glViewport(0, 0, width, height);
+        app->camera->set_aspect_ratio((float)width / height);
+    }
 }
 void cursor_pos_callback(GLFWwindow* window, double x, double y) {
     Application* app = (Application*)glfwGetWindowUserPointer(window); 
@@ -119,9 +140,9 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
 	last_y = (float)y;
 
 	if (!app->mouse_activated) {
-        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) {
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
             app->camera->pan(dx, dy);
-        } else {
+        } else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
             app->camera->rotate(dx, dy);
         }
 	}
@@ -142,6 +163,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
 	if (key == GLFW_KEY_E && action == GLFW_PRESS) {
 		app->mouse_activated = !app->mouse_activated;
+        framebuffer_size_callback(window, app->window_width, app->window_height);
 		glfwSetInputMode(window, GLFW_CURSOR, app->mouse_activated ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 	}
 	if (key == GLFW_KEY_P && action == GLFW_PRESS) {

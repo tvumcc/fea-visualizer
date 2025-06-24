@@ -9,11 +9,17 @@
 
 #include <memory>
 
+struct Settings {
+    int viewing_mode = 1;
+};
+
 class Application {
 public:
     GLFWwindow* window;
-    unsigned int window_width, window_height;
+    unsigned int window_width = 1100, window_height = 800;
+    unsigned int gui_width = 250;
     bool mouse_activated = true;
+    Settings settings;
 
     std::shared_ptr<Camera> camera;
     std::shared_ptr<GridInterface> grid_interface;
@@ -26,10 +32,12 @@ public:
     void load();
     void render();
     void run();
+
+    void render_gui();
 private:
     void init_opengl_window(unsigned int window_width, unsigned int window_height);
     void set_glfw_callbacks();
-    void init_imgui();
+    void init_imgui(const char* font_path, int font_size);
 };
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
