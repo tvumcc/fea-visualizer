@@ -23,15 +23,13 @@ Camera::Camera(glm::vec3 orbit_position, float aspect_ratio, float radius, float
  * @param dy The change in the y position, presumable from the mouse
  */
 void Camera::rotate(float dx, float dy) {
-    if (perspective) {
-        yaw += rotation_sensitivity * dx;
+    yaw += rotation_sensitivity * dx;
 
-        // Limit vertical orbiting
-        float new_pitch = pitch + rotation_sensitivity * dy;
-        if (new_pitch + dy <= 90.0f && new_pitch + dy >= -90.0f) {
-            pitch = new_pitch;
-        } 
-    }
+    // Limit vertical orbiting
+    float new_pitch = pitch + rotation_sensitivity * dy;
+    if (new_pitch + dy <= 90.0f && new_pitch + dy >= -90.0f) {
+        pitch = new_pitch;
+    } 
 
     update_camera_position();
 }
@@ -76,14 +74,15 @@ void Camera::pan(float dx, float dy) {
  * Return the product of the projection and view matrices represented by this camera object.
  */
 glm::mat4 Camera::get_view_projection_matrix() {
-    glm::mat4 view = glm::lookAt(camera_position, orbit_position, up);
+    return get_projection_matrix() * get_view_matrix();
+}
+glm::mat4 Camera::get_view_matrix() {
+    return glm::lookAt(camera_position, orbit_position, up);
+}
+glm::mat4 Camera::get_projection_matrix() {
     glm::mat4 proj;
-    if (perspective) {
-        proj = glm::perspective(fov, aspect_ratio, z_near, z_far);
-    } else {
-        proj = glm::ortho(-aspect_ratio * radius, aspect_ratio * radius, -1.0f * radius, 1.0f * radius, -100.0f, 100.0f);
-    }
-    return proj * view;
+    proj = glm::perspective(fov, aspect_ratio, z_near, z_far);
+    return proj;
 }
 
 /**
@@ -98,6 +97,9 @@ glm::vec3 Camera::get_facing_direction() {
  */
 glm::vec3 Camera::get_orbit_position() {
     return orbit_position;
+}
+glm::vec3 Camera::get_camera_position() {
+    return camera_position;
 }
 
 /**
@@ -119,21 +121,7 @@ void Camera::set_orbit_position(glm::vec3 new_orbit_position) {
     update_camera_position();
 }
 
-/**
- * Changes the camera to use a perspective projection matrix that takes into account distance.
- */
-void Camera::set_perspective() {
-    perspective = true;
-    radius = 10.0f;
-    update_camera_position();
-}
-
-/**
- * Changes the camera to use an orthographic projection matrix that does not take into account distance.
- * Also aligns the camera direction to face in the -z direction and prevents rotating of the camera (but allows panning and zooming in and out).
- */
-void Camera::set_orthographic() {
-    perspective = false;
+void Camera::align_to_plane() {
     yaw = 90.0f;
     pitch = 89.999f;
     update_camera_position();

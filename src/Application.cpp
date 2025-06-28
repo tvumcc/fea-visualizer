@@ -1,8 +1,11 @@
 #include <imgui/imgui.h>
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_opengl3.h>
+#include <glm/gtc/matrix_inverse.hpp>
 
 #include "Application.hpp"
+
+#include <iostream>
 
 Application::Application() {
     init_opengl_window(window_width, window_height);
@@ -33,8 +36,11 @@ void Application::load() {
     framebuffer_size_callback(window, window_width, window_height);
 
     grid_interface = std::make_shared<GridInterface>();
-    grid_interface->solid_color_shader = Application::Shaders::solid_color;
-    grid_interface->vertex_color_shader = Application::Shaders::vertex_color;
+    grid_interface->solid_color_shader = Shaders::solid_color;
+    grid_interface->vertex_color_shader = Shaders::vertex_color;
+
+    pslg = std::make_shared<PSLG>();
+    pslg->shader = Shaders::solid_color;
 }
 
 void Application::render() {
@@ -42,7 +48,15 @@ void Application::render() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
 
+    Shaders::default_shader->bind();
+    Shaders::default_shader->set_mat4x4("view_proj", camera->get_view_projection_matrix());
+    Shaders::solid_color->bind();
+    Shaders::solid_color->set_mat4x4("view_proj", camera->get_view_projection_matrix());
+    Shaders::vertex_color->bind();
+    Shaders::vertex_color->set_mat4x4("view_proj", camera->get_view_projection_matrix());
+
     grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
+    pslg->draw();
 }
 void Application::run() {
     while (!glfwWindowShouldClose(window)) {
@@ -50,7 +64,17 @@ void Application::run() {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
+        double mouse_x, mouse_y;
+        glfwGetCursorPos(window, &mouse_x, &mouse_y);
+        if (gui_visible) mouse_x -= gui_width;
+
         if (gui_visible) render_gui();
+
+        if (settings.interact_mode == InteractMode::DrawPSLG)
+            pslg->set_pending_point(get_mouse_to_grid_plane_point(mouse_x, mouse_y));
+        if (ImGui::GetIO().WantCaptureMouse)
+            pslg->pending_point.reset();
+
         render();
 
 		ImGui::Render();
@@ -67,11 +91,15 @@ void Application::render_gui() {
 	ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
     ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
 
-    if (ImGui::RadioButton("2D", &settings.viewing_mode, 0))
-        camera->set_orthographic();
-    ImGui::SameLine();
-    if (ImGui::RadioButton("3D", &settings.viewing_mode, 1))
-        camera->set_perspective();
+    if (ImGui::Button("Align Top Down"))
+        camera->align_to_plane();
+    if (ImGui::Button("Draw PSLG")) {
+        camera->align_to_plane();
+        settings.interact_mode = InteractMode::DrawPSLG;
+    }
+    if (ImGui::Button("Clear PSLG")) {
+        pslg->clear();
+    }
 
     ImGui::End();
 }
@@ -96,6 +124,7 @@ void Application::set_glfw_callbacks() {
     glfwSetCursorPosCallback(window, cursor_pos_callback);
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetKeyCallback(window, key_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
 }
 void Application::init_imgui(const char* font_path, int font_size) {
 	IMGUI_CHECKVERSION();
@@ -106,6 +135,21 @@ void Application::init_imgui(const char* font_path, int font_size) {
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 460");
+}
+
+glm::vec3 Application::get_mouse_to_grid_plane_point(double x_pos, double y_pos) {
+    glm::vec3 nds_ray = glm::vec3((2.0f * x_pos) / (window_width - (gui_visible ? gui_width : 0)) - 1.0f, 1.0f - (2.0f * y_pos) / window_height, 1.0f);
+    glm::vec4 clip_ray = glm::vec4(nds_ray.x, nds_ray.y, -1.0f, 1.0f);
+    glm::vec4 eye_ray = glm::inverse(camera->get_projection_matrix()) * clip_ray;
+    eye_ray = glm::vec4(eye_ray.x, eye_ray.y, -1.0, 0.0f);
+    glm::vec3 world_ray = glm::normalize(glm::vec3(glm::inverse(camera->get_view_matrix()) * eye_ray));
+
+    glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 origin = camera->get_camera_position();
+
+    float parameter = -glm::dot(normal, origin) / glm::dot(normal, world_ray);
+    glm::vec3 intersection = origin + world_ray * parameter;
+    return intersection;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -148,6 +192,8 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
     } else {
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
+
+
 }
 void scroll_callback(GLFWwindow* window, double dx, double dy) {
     Application* app = (Application*)glfwGetWindowUserPointer(window); 
@@ -166,13 +212,34 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         framebuffer_size_callback(window, app->window_width, app->window_height);
 		glfwSetInputMode(window, GLFW_CURSOR, app->gui_visible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 	}
-	if (key == GLFW_KEY_P && action == GLFW_PRESS) {
-        app->camera->set_perspective();            
-	}
-	if (key == GLFW_KEY_O && action == GLFW_PRESS) {
-        app->camera->set_orthographic();            
-	}
 	if (key == GLFW_KEY_0 && action == GLFW_PRESS) {
         app->camera->set_orbit_position(glm::vec3(0.0f));
 	}
+
+    
+    switch (app->settings.interact_mode) {
+        case InteractMode::DrawPSLG: {
+            if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
+                app->pslg->finalize();
+                if (!(mods & GLFW_MOD_CONTROL)) {
+                    app->settings.interact_mode = InteractMode::Idle;
+                }
+            }
+        } break;
+    }
+}
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    Application* app = (Application*)glfwGetWindowUserPointer(window);
+
+    double x_pos, y_pos;
+    glfwGetCursorPos(window, &x_pos, &y_pos);
+    if (app->gui_visible) x_pos -= app->gui_width;
+
+    switch (app->settings.interact_mode) {
+        case InteractMode::DrawPSLG: {
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse) {
+                app->pslg->add_pending_point();
+            }
+        } break;
+    }
 }

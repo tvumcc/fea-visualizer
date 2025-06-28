@@ -6,11 +6,17 @@
 #include "Shader.hpp"
 #include "Camera.hpp"
 #include "GridInterface.hpp"
+#include "PSLG.hpp"
 
 #include <memory>
 
+enum class InteractMode {
+    Idle,
+    DrawPSLG,
+};
+
 struct Settings {
-    int viewing_mode = 1;
+    InteractMode interact_mode = InteractMode::Idle;
 };
 
 class Application {
@@ -23,6 +29,7 @@ public:
 
     std::shared_ptr<Camera> camera;
     std::shared_ptr<GridInterface> grid_interface;
+    std::shared_ptr<PSLG> pslg;
 
     struct Meshes;
     struct Shaders;
@@ -38,12 +45,15 @@ private:
     void init_opengl_window(unsigned int window_width, unsigned int window_height);
     void set_glfw_callbacks();
     void init_imgui(const char* font_path, int font_size);
+
+    glm::vec3 get_mouse_to_grid_plane_point(double x, double y);
 };
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void cursor_pos_callback(GLFWwindow* window, double x, double y);
 void scroll_callback(GLFWwindow* window, double dx, double dy);
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 
 struct Application::Meshes {
     static inline std::shared_ptr<Mesh> sphere;
