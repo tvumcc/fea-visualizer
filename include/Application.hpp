@@ -7,6 +7,7 @@
 #include "Camera.hpp"
 #include "GridInterface.hpp"
 #include "PSLG.hpp"
+#include "Surface.hpp"
 
 #include <memory>
 
@@ -30,6 +31,7 @@ public:
     std::shared_ptr<Camera> camera;
     std::shared_ptr<GridInterface> grid_interface;
     std::shared_ptr<PSLG> pslg;
+    std::shared_ptr<Surface> surface;
 
     struct Meshes;
     struct Shaders;

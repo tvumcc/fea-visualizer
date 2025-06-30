@@ -41,6 +41,9 @@ void Application::load() {
 
     pslg = std::make_shared<PSLG>();
     pslg->shader = Shaders::solid_color;
+
+    surface = std::make_shared<Surface>();
+    surface->shader = Shaders::solid_color;
 }
 
 void Application::render() {
@@ -57,6 +60,7 @@ void Application::render() {
 
     grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
     pslg->draw();
+    surface->draw();
 }
 void Application::run() {
     while (!glfwWindowShouldClose(window)) {
@@ -99,6 +103,9 @@ void Application::render_gui() {
     }
     if (ImGui::Button("Clear PSLG")) {
         pslg->clear();
+    }
+    if (ImGui::Button("Triangulate PSLG")) {
+        surface->init_from_PSLG(*pslg);
     }
 
     ImGui::End();
