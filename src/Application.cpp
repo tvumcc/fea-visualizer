@@ -105,7 +105,39 @@ void Application::render_gui() {
         pslg->clear();
     }
     if (ImGui::Button("Triangulate PSLG")) {
-        surface->init_from_PSLG(*pslg);
+        if (!surface->init_from_PSLG(*pslg))
+            ImGui::OpenPopup("PSLG Incomplete");
+    }
+    if (ImGui::Button("Clear Surface")) {
+        surface->clear();
+    }
+
+    if (ImGui::BeginPopupModal("PSLG Incomplete", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+        ImGui::Text("PSLG must be complete and closed to triangulate.");
+        if (ImGui::Button("Close"))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+
+    ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
+    switch (settings.interact_mode) {
+        case InteractMode::Idle: {
+            ImGui::Begin("Mode: Idle", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Text("These controls also work in other modes.");
+            ImGui::Bullet(); ImGui::Text("<RMB> and drag to rotate the camera.");
+            ImGui::Bullet(); ImGui::Text("<Shift-LMB> and drag to pan.");
+            ImGui::Bullet(); ImGui::Text("<Scroll> to zoom in and out.");
+            ImGui::Bullet(); ImGui::Text("<O> to reset pan to the origin.");
+            ImGui::Bullet(); ImGui::Text("<E> to toggle the GUI.");
+            ImGui::End();
+        } break;
+        case InteractMode::DrawPSLG: {
+            ImGui::Begin("Mode: PSLG Drawing", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Bullet(); ImGui::Text("<LMB> points in sequence to draw connected line segments.");
+            ImGui::Bullet(); ImGui::Text("<Ctrl-Enter> to finalize a contiguous section of the drawing.");
+            ImGui::Bullet(); ImGui::Text("<Enter> to finalize the entire drawing.");
+            ImGui::End();
+        } break;
     }
 
     ImGui::End();
@@ -219,7 +251,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         framebuffer_size_callback(window, app->window_width, app->window_height);
 		glfwSetInputMode(window, GLFW_CURSOR, app->gui_visible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 	}
-	if (key == GLFW_KEY_0 && action == GLFW_PRESS) {
+	if (key == GLFW_KEY_O && action == GLFW_PRESS) {
         app->camera->set_orbit_position(glm::vec3(0.0f));
 	}
 
@@ -231,6 +263,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                 if (!(mods & GLFW_MOD_CONTROL)) {
                     app->settings.interact_mode = InteractMode::Idle;
                 }
+            }
+            if (key == GLFW_KEY_BACKSPACE && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
+                app->pslg->remove_last_unfinalized_point();
             }
         } break;
     }
@@ -244,7 +279,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
     switch (app->settings.interact_mode) {
         case InteractMode::DrawPSLG: {
-            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse) {
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
                 app->pslg->add_pending_point();
             }
         } break;

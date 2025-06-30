@@ -23,8 +23,10 @@ public:
     void draw();
     void set_pending_point(glm::vec3 point);
     void add_pending_point();
+    void remove_last_unfinalized_point();
     void finalize();
     void clear();
+    bool closed();
 private:
     unsigned int vertex_buffer, element_buffer, vertex_array; 
     void load_buffers();

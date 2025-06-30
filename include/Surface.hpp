@@ -19,10 +19,8 @@ public:
     bool closed;
     const glm::vec3 EDGE_COLOR = glm::vec3(0.9f, 0.9f, 0.9f);
 
-    Surface();
-
-    void init_from_PSLG(PSLG& pslg);
-    void init_from_obj(const char* file_path);
+    bool init_from_PSLG(PSLG& pslg);
+    bool init_from_obj(const char* file_path);
 
     void draw();
     void clear();

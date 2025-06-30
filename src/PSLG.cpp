@@ -65,6 +65,15 @@ void PSLG::add_pending_point() {
         indices.push_back(vertices.size()-1);
     }
 }
+void PSLG::remove_last_unfinalized_point() {
+    if (vertices.size() > section_start_idx) {
+        if (vertices.size() - section_start_idx >= 2) {
+            indices.pop_back();
+            indices.pop_back();
+        }
+        vertices.pop_back();
+    }
+}
 void PSLG::finalize() {
     if (vertices.size() - section_start_idx > 0) {
         indices.push_back(vertices.size()-1);
@@ -79,4 +88,7 @@ void PSLG::clear() {
     pending_point.reset();
     section_start_idx = 0;
     load_buffers();
+}
+bool PSLG::closed() {
+    return section_start_idx == vertices.size() && vertices.size() >= 3;
 }

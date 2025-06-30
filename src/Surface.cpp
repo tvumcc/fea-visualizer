@@ -7,25 +7,28 @@
 
 #define TRI_LIBRARY
 
-Surface::Surface() {
-}
+bool Surface::init_from_PSLG(PSLG& pslg) {
+    if (pslg.closed()) {
+        clear();
+        std::vector<double> in_vertices(pslg.vertices.size() * 2, 0.0);
+        for (int i = 0; i < in_vertices.size(); i += 2) {
+            in_vertices[i] = pslg.vertices[i/2].x;
+            in_vertices[i+1] = pslg.vertices[i/2].z;
+        }
+        std::vector<double> in_holes; // TODO: initialization when support for holes is added
 
-void Surface::init_from_PSLG(PSLG& pslg) {
-    clear();
-    std::vector<double> in_vertices(pslg.vertices.size() * 2, 0.0);
-    for (int i = 0; i < in_vertices.size(); i += 2) {
-        in_vertices[i] = pslg.vertices[i/2].x;
-        in_vertices[i+1] = pslg.vertices[i/2].z;
+        perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()),pslg.indices.size() / 2, in_holes.data(), 0);
+        closed = false;
+        load_buffers();
+        return true;
+    } else {
+        return false;
     }
-    std::vector<double> in_holes; // TODO: initialization when support for holes is added
-
-    perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()),pslg.indices.size() / 2, in_holes.data(), 0);
-    closed = false;
-    load_buffers();
 }
 
-void Surface::init_from_obj(const char* file_path) {
+bool Surface::init_from_obj(const char* file_path) {
     clear();
+    return true;
 }
 
 void Surface::draw() {
@@ -42,6 +45,7 @@ void Surface::clear() {
     vertices.clear();
     triangles.clear();
     on_boundary.clear();
+    load_buffers();
 }
 
 void Surface::load_buffers() {
