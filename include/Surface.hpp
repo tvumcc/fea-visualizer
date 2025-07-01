@@ -4,6 +4,7 @@
 
 #include "Shader.hpp"
 #include "PSLG.hpp"
+#include "ColorMap.hpp"
 
 #include <vector>
 #include <array>
@@ -12,11 +13,17 @@
 class Surface {
 public:
     std::vector<glm::vec3> vertices;
+    std::vector<float> values;
     std::vector<unsigned int> triangles;
     std::vector<bool> on_boundary;
+
     std::shared_ptr<Shader> shader;
+    std::shared_ptr<Shader> fem_mesh_shader;
+    std::shared_ptr<Mesh> sphere_mesh;
+    std::shared_ptr<ColorMap> color_map;
 
     bool closed;
+    bool initialized = false;
     const glm::vec3 EDGE_COLOR = glm::vec3(0.9f, 0.9f, 0.9f);
 
     bool init_from_PSLG(PSLG& pslg);
@@ -24,8 +31,10 @@ public:
 
     void draw();
     void clear();
+    void brush(glm::vec3 world_ray, glm::vec3 origin, float value);
     void load_buffers();
+    void load_value_buffer();
     void perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes);
 private:
-    unsigned int vertex_buffer, element_buffer, vertex_array;
+    unsigned int vertex_buffer, value_buffer, element_buffer, vertex_array;
 };

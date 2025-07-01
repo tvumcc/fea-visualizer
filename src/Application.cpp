@@ -13,6 +13,7 @@ Application::Application() {
 
     Meshes::load();
     Shaders::load();
+    ColorMaps::load();
     load();
 }
 Application::~Application() {
@@ -30,6 +31,21 @@ void Application::Shaders::load() {
     default_shader = std::make_shared<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"); 
     solid_color = std::make_shared<Shader>("shaders/solid_color_vert.glsl", "shaders/solid_color_frag.glsl"); 
     vertex_color = std::make_shared<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"); 
+    fem_mesh = std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl");
+}
+void Application::ColorMaps::load() {
+    viridis = std::make_shared<ColorMap>(
+        "Viridis",
+        std::array<glm::vec3, 7>({
+            glm::vec3(0.274344,0.004462,0.331359),
+            glm::vec3(0.108915,1.397291,1.388110),
+            glm::vec3(-0.319631,0.243490,0.156419),
+            glm::vec3(-4.629188,-5.882803,-19.646115),
+            glm::vec3(6.181719,14.388598,57.442181),
+            glm::vec3(4.876952,-13.955112,-66.125783),
+            glm::vec3(-5.513165,4.709245,26.582180),
+        })
+    );
 }
 void Application::load() {
     camera = std::make_shared<Camera>(); 
@@ -45,6 +61,9 @@ void Application::load() {
 
     surface = std::make_shared<Surface>();
     surface->shader = Shaders::solid_color;
+    surface->fem_mesh_shader = Shaders::fem_mesh;
+    surface->sphere_mesh = Meshes::sphere;
+    surface->color_map = ColorMaps::viridis;
 }
 
 void Application::render() {
@@ -58,6 +77,8 @@ void Application::render() {
     Shaders::solid_color->set_mat4x4("view_proj", camera->get_view_projection_matrix());
     Shaders::vertex_color->bind();
     Shaders::vertex_color->set_mat4x4("view_proj", camera->get_view_projection_matrix());
+    Shaders::fem_mesh->bind();
+    Shaders::fem_mesh->set_mat4x4("view_proj", camera->get_view_projection_matrix());
 
     grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
     pslg->draw();
@@ -76,7 +97,7 @@ void Application::run() {
         if (gui_visible) render_gui();
 
         if (settings.interact_mode == InteractMode::DrawPSLG)
-            pslg->set_pending_point(get_mouse_to_grid_plane_point(mouse_x, mouse_y));
+            pslg->set_pending_point(get_mouse_to_grid_plane_point());
         if (ImGui::GetIO().WantCaptureMouse)
             pslg->pending_point.reset();
 
@@ -122,6 +143,9 @@ void Application::render_gui() {
             pslg->clear_holes();
         }
     }
+    if (ImGui::Button("Enable Brush")) {
+        settings.interact_mode = InteractMode::Brush;
+    }
 
     if (ImGui::BeginPopupModal("PSLG Incomplete", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
         ImGui::Text("PSLG must be complete and closed to triangulate.");
@@ -152,6 +176,11 @@ void Application::render_gui() {
         case InteractMode::AddHole: {
             ImGui::Begin("Mode: Add Hole", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
             ImGui::Text("<LMB> in a closed region to designate it as a hole.");
+            ImGui::End();
+        } break;
+        case InteractMode::Brush: {
+            ImGui::Begin("Mode: Brush", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Text("<LMB> on elements to set the values of their nodes.");
             ImGui::End();
         } break;
     }
@@ -192,13 +221,22 @@ void Application::init_imgui(const char* font_path, int font_size) {
 	ImGui_ImplOpenGL3_Init("#version 460");
 }
 
-glm::vec3 Application::get_mouse_to_grid_plane_point(double x_pos, double y_pos) {
+glm::vec3 Application::get_world_ray_from_mouse() {
+    double x_pos, y_pos;
+    glfwGetCursorPos(window, &x_pos, &y_pos);
+    if (gui_visible) x_pos -= gui_width;
+
     glm::vec3 nds_ray = glm::vec3((2.0f * x_pos) / (window_width - (gui_visible ? gui_width : 0)) - 1.0f, 1.0f - (2.0f * y_pos) / window_height, 1.0f);
     glm::vec4 clip_ray = glm::vec4(nds_ray.x, nds_ray.y, -1.0f, 1.0f);
     glm::vec4 eye_ray = glm::inverse(camera->get_projection_matrix()) * clip_ray;
     eye_ray = glm::vec4(eye_ray.x, eye_ray.y, -1.0, 0.0f);
     glm::vec3 world_ray = glm::normalize(glm::vec3(glm::inverse(camera->get_view_matrix()) * eye_ray));
 
+    return world_ray;
+}
+
+glm::vec3 Application::get_mouse_to_grid_plane_point() {
+    glm::vec3 world_ray = get_world_ray_from_mouse();
     glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::vec3 origin = camera->get_camera_position();
 
@@ -289,10 +327,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     Application* app = (Application*)glfwGetWindowUserPointer(window);
 
-    double x_pos, y_pos;
-    glfwGetCursorPos(window, &x_pos, &y_pos);
-    if (app->gui_visible) x_pos -= app->gui_width;
-
     switch (app->settings.interact_mode) {
         case InteractMode::DrawPSLG: {
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
@@ -301,9 +335,15 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         } break;
         case InteractMode::AddHole: {
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
-                app->pslg->add_hole(app->get_mouse_to_grid_plane_point(x_pos, y_pos));
+                app->pslg->add_hole(app->get_mouse_to_grid_plane_point());
                 app->settings.interact_mode = InteractMode::DrawPSLG;
             }
         } break;
+        case InteractMode::Brush: {
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
+                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 0.5f);
+            }
+        } break;
+
     }
 }

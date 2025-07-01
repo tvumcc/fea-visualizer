@@ -8,6 +8,7 @@
 #include "GridInterface.hpp"
 #include "PSLG.hpp"
 #include "Surface.hpp"
+#include "ColorMap.hpp"
 
 #include <memory>
 
@@ -15,6 +16,7 @@ enum class InteractMode {
     Idle,
     DrawPSLG,
     AddHole,
+    Brush,
 };
 
 struct Settings {
@@ -36,6 +38,7 @@ public:
 
     struct Meshes;
     struct Shaders;
+    struct ColorMaps;
 
     Application();
     ~Application();
@@ -44,7 +47,8 @@ public:
     void run();
 
     void render_gui();
-    glm::vec3 get_mouse_to_grid_plane_point(double x, double y);
+    glm::vec3 get_world_ray_from_mouse();
+    glm::vec3 get_mouse_to_grid_plane_point();
 private:
     void init_opengl_window(unsigned int window_width, unsigned int window_height);
     void set_glfw_callbacks();
@@ -67,6 +71,13 @@ struct Application::Shaders {
     static inline std::shared_ptr<Shader> default_shader;
     static inline std::shared_ptr<Shader> solid_color;
     static inline std::shared_ptr<Shader> vertex_color;
+    static inline std::shared_ptr<Shader> fem_mesh;
+
+    static void load();
+};
+
+struct Application::ColorMaps {
+    static inline std::shared_ptr<ColorMap> viridis;
 
     static void load();
 };

@@ -1,5 +1,6 @@
 #include <glad/glad.h>
 #include <triangle/triangle.h>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <Surface.hpp>
 
@@ -22,7 +23,9 @@ bool Surface::init_from_PSLG(PSLG& pslg) {
         }
 
         perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()), pslg.indices.size() / 2, in_holes.data(), pslg.holes.size());
+        values = std::vector<float>(vertices.size(), 0.0f);
         closed = false;
+        initialized = true;
         load_buffers();
         return true;
     } else {
@@ -36,13 +39,82 @@ bool Surface::init_from_obj(const char* file_path) {
 }
 
 void Surface::draw() {
-    shader->bind();
-    shader->set_vec3("object_color", EDGE_COLOR);
-    shader->set_mat4x4("model", glm::mat4(1.0f));
-    glBindVertexArray(vertex_array);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    if (initialized) {
+        // For color debugging purposes
+        for (int i = 0; i < values.size(); i++) {
+            values[i] *= 0.999f;
+        }
+        load_value_buffer();
+
+        // Draw Colored Surface
+        fem_mesh_shader->bind();
+        fem_mesh_shader->set_mat4x4("model", glm::mat4(1.0f));
+        color_map->set_uniforms(*fem_mesh_shader);
+        glBindVertexArray(vertex_array);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
+
+        // Draw Wireframe
+        shader->bind();
+        shader->set_mat4x4("model", glm::mat4(1.0f));
+        shader->set_vec3("object_color", EDGE_COLOR);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+        // TODO: Switch to instancing for faster rendering
+        for (int i = 0; i < vertices.size(); i++) {
+            shader->bind();
+            shader->set_vec3("object_color", color_map->get_color(values[i]));
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, vertices[i]);
+            model = glm::scale(model, glm::vec3(0.02f));
+            shader->set_mat4x4("model", model);
+            sphere_mesh->draw(*shader, GL_TRIANGLES);
+        }
+    }
+}
+
+void Surface::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
+    int tri_idx = -1;
+    float min_dist = 0.0f;
+
+    for (int i = 0; i < triangles.size() / 3; i++) {
+        glm::vec3 A = vertices[triangles[i*3+0]];
+        glm::vec3 B = vertices[triangles[i*3+1]];
+        glm::vec3 C = vertices[triangles[i*3+2]];
+        glm::vec3 center = (A + B + C) / 3.0f;
+
+        glm::vec3 normal = glm::normalize(glm::cross(B - A, C - A));
+        float denom = glm::dot(world_ray, normal);
+
+        if (std::abs(denom) > 1e-6) {
+            float dist = -glm::dot(origin - center, normal) / denom;
+            glm::vec3 point = origin + world_ray * dist;
+
+            int pos = 0, neg = 0;
+
+            for (int j = 0; j < 3; j++) {
+                glm::vec3 p1 = vertices[triangles[i*3+j]];
+                glm::vec3 p2 = vertices[triangles[i*3+((j+1) % 3)]];
+
+                glm::vec3 perpVector = glm::cross(normal, p2 - p1);
+                if (glm::dot(perpVector, point - p1) < 0.0f) neg++;
+                else pos++;
+            }
+
+            if ((pos == 3 || neg == 3) && (tri_idx == -1 || dist < min_dist) && dist > 0.0f) {
+                tri_idx = i;
+                min_dist = dist;
+            }
+        }
+    }
+
+    if (tri_idx != -1) {
+        for (int i = 0; i < 3; i++)
+            values[triangles[tri_idx*3+i]] = value;
+    }
 }
 
 void Surface::clear() {
@@ -60,12 +132,26 @@ void Surface::load_buffers() {
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
 
+    glGenBuffers(1, &value_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
+    glBufferData(GL_ARRAY_BUFFER, values.size() * sizeof(float), values.data(), GL_STATIC_DRAW);
+
     glGenBuffers(1, &element_buffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size() * sizeof(unsigned int), triangles.data(), GL_STATIC_DRAW);
 
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
     glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+}
+
+void Surface::load_value_buffer() {
+    glBindVertexArray(vertex_array);
+    glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
+    glBufferData(GL_ARRAY_BUFFER, values.size() * sizeof(float), values.data(), GL_STATIC_DRAW);
 }
 
 void Surface::perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes) {
