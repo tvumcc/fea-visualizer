@@ -70,10 +70,16 @@ void PSLG::set_pending_point(glm::vec3 point) {
     pending_point = point;
 }
 void PSLG::add_pending_point() {
-    vertices.push_back(pending_point.value());
-    if (vertices.size() - section_start_idx >= 2) {
-        indices.push_back(vertices.size()-2);
-        indices.push_back(vertices.size()-1);
+    if (vertices.empty() || 
+    (pending_point.has_value() && 
+    (std::abs(vertices[vertices.size()-1].x - pending_point.value().x) > 1e-9) &&
+    (std::abs(vertices[vertices.size()-1].x - pending_point.value().y) > 1e-9) &&
+    (std::abs(vertices[vertices.size()-1].x - pending_point.value().z) > 1e-9))) {
+        vertices.push_back(pending_point.value());
+        if (vertices.size() - section_start_idx >= 2) {
+            indices.push_back(vertices.size()-2);
+            indices.push_back(vertices.size()-1);
+        }
     }
 }
 void PSLG::add_hole(glm::vec3 hole) {
