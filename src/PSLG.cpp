@@ -1,4 +1,5 @@
 #include <glad/glad.h>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "PSLG.hpp"
 
@@ -54,6 +55,16 @@ void PSLG::draw() {
         }
         vertices.pop_back();
     }
+
+    for (glm::vec3 hole : holes) {
+        shader->bind();
+        shader->set_vec3("object_color", HOLE_COLOR);
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, hole);
+        model = glm::scale(model, glm::vec3(0.05f, 0.05f, 0.05f));
+        shader->set_mat4x4("model", model);
+        sphere_mesh->draw(*shader, GL_TRIANGLES);
+    }
 }
 void PSLG::set_pending_point(glm::vec3 point) {
     pending_point = point;
@@ -64,6 +75,9 @@ void PSLG::add_pending_point() {
         indices.push_back(vertices.size()-2);
         indices.push_back(vertices.size()-1);
     }
+}
+void PSLG::add_hole(glm::vec3 hole) {
+    holes.push_back(hole);
 }
 void PSLG::remove_last_unfinalized_point() {
     if (vertices.size() > section_start_idx) {
@@ -88,6 +102,9 @@ void PSLG::clear() {
     pending_point.reset();
     section_start_idx = 0;
     load_buffers();
+}
+void PSLG::clear_holes() {
+    holes.clear();
 }
 bool PSLG::closed() {
     return section_start_idx == vertices.size() && vertices.size() >= 3;

@@ -41,6 +41,7 @@ void Application::load() {
 
     pslg = std::make_shared<PSLG>();
     pslg->shader = Shaders::solid_color;
+    pslg->sphere_mesh = Meshes::sphere;
 
     surface = std::make_shared<Surface>();
     surface->shader = Shaders::solid_color;
@@ -104,12 +105,22 @@ void Application::render_gui() {
     if (ImGui::Button("Clear PSLG")) {
         pslg->clear();
     }
-    if (ImGui::Button("Triangulate PSLG")) {
-        if (!surface->init_from_PSLG(*pslg))
-            ImGui::OpenPopup("PSLG Incomplete");
+    if (pslg->closed()) {
+        if (ImGui::Button("Add Hole")) {
+            settings.interact_mode = InteractMode::AddHole;
+        }
+        if (ImGui::Button("Triangulate PSLG")) {
+            if (!surface->init_from_PSLG(*pslg))
+                ImGui::OpenPopup("PSLG Incomplete");
+        }
     }
     if (ImGui::Button("Clear Surface")) {
         surface->clear();
+    }
+    if (!pslg->holes.empty()) {
+        if (ImGui::Button("Clear Holes")) {
+            pslg->clear_holes();
+        }
     }
 
     if (ImGui::BeginPopupModal("PSLG Incomplete", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
@@ -136,6 +147,11 @@ void Application::render_gui() {
             ImGui::Bullet(); ImGui::Text("<LMB> points in sequence to draw connected line segments.");
             ImGui::Bullet(); ImGui::Text("<Ctrl-Enter> to finalize a contiguous section of the drawing.");
             ImGui::Bullet(); ImGui::Text("<Enter> to finalize the entire drawing.");
+            ImGui::End();
+        } break;
+        case InteractMode::AddHole: {
+            ImGui::Begin("Mode: Add Hole", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Text("<LMB> in a closed region to designate it as a hole.");
             ImGui::End();
         } break;
     }
@@ -281,6 +297,12 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         case InteractMode::DrawPSLG: {
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
                 app->pslg->add_pending_point();
+            }
+        } break;
+        case InteractMode::AddHole: {
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
+                app->pslg->add_hole(app->get_mouse_to_grid_plane_point(x_pos, y_pos));
+                app->settings.interact_mode = InteractMode::DrawPSLG;
             }
         } break;
     }

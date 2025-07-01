@@ -15,9 +15,13 @@ bool Surface::init_from_PSLG(PSLG& pslg) {
             in_vertices[i] = pslg.vertices[i/2].x;
             in_vertices[i+1] = pslg.vertices[i/2].z;
         }
-        std::vector<double> in_holes; // TODO: initialization when support for holes is added
+        std::vector<double> in_holes(pslg.holes.size() * 2, 0.0); // TODO: initialization when support for holes is added
+        for (int i = 0; i < in_holes.size(); i += 2) {
+            in_holes[i] = pslg.holes[i/2].x;
+            in_holes[i+1] = pslg.holes[i/2].z;
+        }
 
-        perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()),pslg.indices.size() / 2, in_holes.data(), 0);
+        perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()), pslg.indices.size() / 2, in_holes.data(), pslg.holes.size());
         closed = false;
         load_buffers();
         return true;

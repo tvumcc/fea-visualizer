@@ -14,6 +14,7 @@
 enum class InteractMode {
     Idle,
     DrawPSLG,
+    AddHole,
 };
 
 struct Settings {
@@ -43,12 +44,11 @@ public:
     void run();
 
     void render_gui();
+    glm::vec3 get_mouse_to_grid_plane_point(double x, double y);
 private:
     void init_opengl_window(unsigned int window_width, unsigned int window_height);
     void set_glfw_callbacks();
     void init_imgui(const char* font_path, int font_size);
-
-    glm::vec3 get_mouse_to_grid_plane_point(double x, double y);
 };
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
