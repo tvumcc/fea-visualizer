@@ -51,7 +51,6 @@ void Surface::draw() {
         fem_mesh_shader->set_mat4x4("model", glm::mat4(1.0f));
         color_map->set_uniforms(*fem_mesh_shader);
         glBindVertexArray(vertex_array);
-        glClear(GL_DEPTH_BUFFER_BIT);
         glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
 
         // Draw Wireframe
@@ -59,8 +58,9 @@ void Surface::draw() {
         shader->set_mat4x4("model", glm::mat4(1.0f));
         shader->set_vec3("object_color", EDGE_COLOR);
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glClear(GL_DEPTH_BUFFER_BIT);
+        glDepthFunc(GL_LEQUAL);
         glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
+        glDepthFunc(GL_LESS);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         // TODO: Switch to instancing for faster rendering

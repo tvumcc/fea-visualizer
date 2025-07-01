@@ -70,6 +70,7 @@ void Application::render() {
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_MULTISAMPLE);
 
     Shaders::default_shader->bind();
     Shaders::default_shader->set_mat4x4("view_proj", camera->get_view_projection_matrix());
@@ -80,9 +81,9 @@ void Application::render() {
     Shaders::fem_mesh->bind();
     Shaders::fem_mesh->set_mat4x4("view_proj", camera->get_view_projection_matrix());
 
-    grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
     pslg->draw();
     surface->draw();
+    grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
 }
 void Application::run() {
     while (!glfwWindowShouldClose(window)) {
@@ -196,6 +197,7 @@ void Application::init_opengl_window(unsigned int window_width, unsigned int win
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_SAMPLES, 4);
 
     window = glfwCreateWindow(window_width, window_height, "FEA Visualizer", NULL, NULL);
 	glfwMakeContextCurrent(window);

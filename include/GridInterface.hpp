@@ -14,7 +14,7 @@ public:
     glm::vec3 y_axis_color = glm::vec3(0.0f, 0.0f, 1.0f);
     glm::vec3 z_axis_color = glm::vec3(0.0f, 1.0f, 0.0f);
     float grid_spacing = 1.0f;
-    int grid_lines_per_quadrant = 50;
+    int grid_lines_per_quadrant = 10;
 
     Mesh panning_locator_mesh;
     glm::vec3 panning_locator_color = glm::vec3(0.7f, 0.0f, 0.7f);

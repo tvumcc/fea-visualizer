@@ -73,8 +73,7 @@ void PSLG::add_pending_point() {
     if (vertices.empty() || 
     (pending_point.has_value() && 
     (std::abs(vertices[vertices.size()-1].x - pending_point.value().x) > 1e-9) &&
-    (std::abs(vertices[vertices.size()-1].x - pending_point.value().y) > 1e-9) &&
-    (std::abs(vertices[vertices.size()-1].x - pending_point.value().z) > 1e-9))) {
+    (std::abs(vertices[vertices.size()-1].z - pending_point.value().z) > 1e-9))) {
         vertices.push_back(pending_point.value());
         if (vertices.size() - section_start_idx >= 2) {
             indices.push_back(vertices.size()-2);
