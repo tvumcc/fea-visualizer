@@ -132,8 +132,7 @@ void Application::render_gui() {
             settings.interact_mode = InteractMode::AddHole;
         }
         if (ImGui::Button("Triangulate PSLG")) {
-            if (!surface->init_from_PSLG(*pslg))
-                ImGui::OpenPopup("PSLG Incomplete");
+            surface->init_from_PSLG(*pslg);
         }
     }
     if (ImGui::Button("Clear Surface")) {

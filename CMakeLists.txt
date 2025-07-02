@@ -16,6 +16,7 @@ include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/glm
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/tinyobjloader
+	${CMAKE_CURRENT_SOURCE_DIR}/lib/eigen
 )
 
 add_compile_definitions(NO_TIMER ANSI_DECLARATORS TRILIBRARY)

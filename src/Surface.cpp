@@ -191,9 +191,12 @@ void Surface::perform_triangulation(double* vertices, int num_vertices, int* seg
     triangles = std::vector<unsigned int>(tri_out.numberoftriangles * 3, 0);
     for (int i = 0; i < triangles.size(); i++)
         triangles[i] = tri_out.trianglelist[i]; 
-    on_boundary = std::vector<bool>(tri_out.numberofedges, false);
-    for (int i = 0; i < on_boundary.size(); i++)
-        on_boundary[i] = tri_out.edgemarkerlist[i];
+    on_boundary = std::vector<bool>(tri_out.numberofpoints, false);
+    num_boundary_points = 0;
+    for (int i = 0; i < on_boundary.size(); i++) {
+        on_boundary[i] = tri_out.pointmarkerlist[i];
+        num_boundary_points++;
+    }
 
     if (tri_out.pointlist != NULL) free(tri_out.pointlist);
     if (tri_out.trianglelist!= NULL) free(tri_out.trianglelist);

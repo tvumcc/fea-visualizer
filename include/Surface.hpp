@@ -22,6 +22,7 @@ public:
     std::shared_ptr<Mesh> sphere_mesh;
     std::shared_ptr<ColorMap> color_map;
 
+    int num_boundary_points = 0;
     bool closed;
     bool initialized = false;
     const glm::vec3 EDGE_COLOR = glm::vec3(0.9f, 0.9f, 0.9f);
