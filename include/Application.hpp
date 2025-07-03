@@ -9,6 +9,7 @@
 #include "PSLG.hpp"
 #include "Surface.hpp"
 #include "ColorMap.hpp"
+#include "HeatSolver.hpp"
 
 #include <memory>
 
@@ -35,6 +36,7 @@ public:
     std::shared_ptr<GridInterface> grid_interface;
     std::shared_ptr<PSLG> pslg;
     std::shared_ptr<Surface> surface;
+    std::shared_ptr<HeatSolver> solver;
 
     struct Meshes;
     struct Shaders;

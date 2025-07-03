@@ -195,7 +195,8 @@ void Surface::perform_triangulation(double* vertices, int num_vertices, int* seg
     num_boundary_points = 0;
     for (int i = 0; i < on_boundary.size(); i++) {
         on_boundary[i] = tri_out.pointmarkerlist[i];
-        num_boundary_points++;
+        if (on_boundary[i])
+            num_boundary_points++;
     }
 
     if (tri_out.pointlist != NULL) free(tri_out.pointlist);

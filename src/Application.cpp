@@ -64,6 +64,8 @@ void Application::load() {
     surface->fem_mesh_shader = Shaders::fem_mesh;
     surface->sphere_mesh = Meshes::sphere;
     surface->color_map = ColorMaps::viridis;
+
+    solver = std::make_shared<HeatSolver>();
 }
 
 void Application::render() {
@@ -145,6 +147,10 @@ void Application::render_gui() {
     }
     if (ImGui::Button("Enable Brush")) {
         settings.interact_mode = InteractMode::Brush;
+    }
+    if (ImGui::Button("Init Solver")) {
+        solver->surface = surface;
+        solver->init();
     }
 
     if (ImGui::BeginPopupModal("PSLG Incomplete", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
