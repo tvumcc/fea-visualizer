@@ -152,6 +152,9 @@ void Application::render_gui() {
         solver->surface = surface;
         solver->init();
     }
+    if (ImGui::Button("Time Step")) {
+        solver->advance_time();
+    }
 
     if (ImGui::BeginPopupModal("PSLG Incomplete", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
         ImGui::Text("PSLG must be complete and closed to triangulate.");
@@ -329,6 +332,11 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                 app->pslg->remove_last_unfinalized_point();
             }
         } break;
+        case InteractMode::Brush: {
+            if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
+                app->settings.interact_mode = InteractMode::Idle;
+            }
+        } break;
     }
 }
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
@@ -348,7 +356,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         } break;
         case InteractMode::Brush: {
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
-                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 0.5f);
+                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f);
             }
         } break;
 

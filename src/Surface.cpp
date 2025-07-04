@@ -40,10 +40,6 @@ bool Surface::init_from_obj(const char* file_path) {
 
 void Surface::draw() {
     if (initialized) {
-        // For color debugging purposes
-        for (int i = 0; i < values.size(); i++) {
-            values[i] *= 0.999f;
-        }
         load_value_buffer();
 
         // Draw Colored Surface

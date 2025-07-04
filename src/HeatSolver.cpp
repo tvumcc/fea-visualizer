@@ -1,5 +1,6 @@
-#include <Eigen/Dense>
 #include <Eigen/Eigen>
+#include <Eigen/Dense>
+#include <Eigen/IterativeLinearSolvers>
 
 #include "HeatSolver.hpp"
 
@@ -120,5 +121,25 @@ void HeatSolver::assemble_mass_matrix() {
 }
 
 void HeatSolver::advance_time() {
+    Eigen::VectorXf solution_vector;
+    solution_vector.resize(surface->vertices.size() - surface->num_boundary_points);
+    for (int i = 0; i < idx_map.size(); i++)
+        if (idx_map[i] != -1)
+            solution_vector.coeffRef(idx_map[i], 0) = surface->values[i];
 
+    std::cout << "here\n";
+    Eigen::VectorXf b = (mass_matrix / time_step) * solution_vector;
+    Eigen::SparseMatrix<float> A = (mass_matrix / time_step) + (conductivity * stiffness_matrix);
+
+    Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower|Eigen::Upper> cg;
+    cg.compute(A);
+    solution_vector = cg.solve(b);
+
+    for (int i = 0; i < idx_map.size(); i++) {
+        if (idx_map[i] != -1) {
+            surface->values[i] = solution_vector.coeff(idx_map[i], 0);
+        } else {
+            surface->values[i] = 0.0f;
+        }
+    }
 }

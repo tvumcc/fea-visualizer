@@ -10,8 +10,8 @@ public:
     float time_step = 0.01f;
 
     std::vector<int> idx_map;
-    Eigen::SparseMatrix<float, Eigen::RowMajor> stiffness_matrix;
-    Eigen::SparseMatrix<float, Eigen::RowMajor> mass_matrix;
+    Eigen::SparseMatrix<float> stiffness_matrix;
+    Eigen::SparseMatrix<float> mass_matrix;
 
     void init();
     void assemble_stiffness_matrix();
