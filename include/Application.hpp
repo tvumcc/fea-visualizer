@@ -10,6 +10,7 @@
 #include "Surface.hpp"
 #include "ColorMap.hpp"
 #include "HeatSolver.hpp"
+#include "ResourceManager.hpp"
 
 #include <memory>
 
@@ -36,15 +37,16 @@ public:
     std::shared_ptr<GridInterface> grid_interface;
     std::shared_ptr<PSLG> pslg;
     std::shared_ptr<Surface> surface;
-    std::shared_ptr<HeatSolver> solver;
+    std::shared_ptr<Solver> solver;
 
-    struct Meshes;
-    struct Shaders;
-    struct ColorMaps;
+    ResourceManager<Mesh> meshes;
+    ResourceManager<Shader> shaders;
+    ResourceManager<ColorMap> color_maps;
 
     Application();
     ~Application();
     void load();
+    void load_resources();
     void render();
     void run();
 
@@ -62,24 +64,3 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y);
 void scroll_callback(GLFWwindow* window, double dx, double dy);
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
-
-struct Application::Meshes {
-    static inline std::shared_ptr<Mesh> sphere;
-
-    static void load();
-};
-
-struct Application::Shaders {
-    static inline std::shared_ptr<Shader> default_shader;
-    static inline std::shared_ptr<Shader> solid_color;
-    static inline std::shared_ptr<Shader> vertex_color;
-    static inline std::shared_ptr<Shader> fem_mesh;
-
-    static void load();
-};
-
-struct Application::ColorMaps {
-    static inline std::shared_ptr<ColorMap> viridis;
-
-    static void load();
-};

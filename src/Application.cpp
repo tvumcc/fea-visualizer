@@ -9,11 +9,9 @@
 
 Application::Application() {
     init_opengl_window(window_width, window_height);
-    init_imgui("assets/NotoSans.ttf", 20);
+    init_imgui("assets/NotoSans.ttf", 30);
 
-    Meshes::load();
-    Shaders::load();
-    ColorMaps::load();
+    load_resources();
     load();
 }
 Application::~Application() {
@@ -24,17 +22,18 @@ Application::~Application() {
 	glfwTerminate();
 }
 
-void Application::Meshes::load() {
-    sphere = std::make_shared<Mesh>("assets/sphere.obj");
-}
-void Application::Shaders::load() {
-    default_shader = std::make_shared<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"); 
-    solid_color = std::make_shared<Shader>("shaders/solid_color_vert.glsl", "shaders/solid_color_frag.glsl"); 
-    vertex_color = std::make_shared<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"); 
-    fem_mesh = std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl");
-}
-void Application::ColorMaps::load() {
-    viridis = std::make_shared<ColorMap>(
+void Application::load_resources() {
+    // Meshes
+    meshes.add("sphere", std::make_shared<Mesh>("assets/sphere.obj"));
+
+    // Shaders
+    shaders.add("default_shader", std::make_shared<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"));
+    shaders.add("solid_color", std::make_shared<Shader>("shaders/solid_color_vert.glsl", "shaders/solid_color_frag.glsl"));
+    shaders.add("vertex_color", std::make_shared<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"));
+    shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
+
+    // Color Maps
+    color_maps.add("viridis", std::make_shared<ColorMap>(
         "Viridis",
         std::array<glm::vec3, 7>({
             glm::vec3(0.274344,0.004462,0.331359),
@@ -45,25 +44,26 @@ void Application::ColorMaps::load() {
             glm::vec3(4.876952,-13.955112,-66.125783),
             glm::vec3(-5.513165,4.709245,26.582180),
         })
-    );
+    ));
 }
+
 void Application::load() {
     camera = std::make_shared<Camera>(); 
     framebuffer_size_callback(window, window_width, window_height);
 
     grid_interface = std::make_shared<GridInterface>();
-    grid_interface->solid_color_shader = Shaders::solid_color;
-    grid_interface->vertex_color_shader = Shaders::vertex_color;
+    grid_interface->solid_color_shader = shaders.get("solid_color");
+    grid_interface->vertex_color_shader = shaders.get("vertex_color");
 
     pslg = std::make_shared<PSLG>();
-    pslg->shader = Shaders::solid_color;
-    pslg->sphere_mesh = Meshes::sphere;
+    pslg->shader = shaders.get("solid_color");
+    pslg->sphere_mesh = meshes.get("sphere");
 
     surface = std::make_shared<Surface>();
-    surface->shader = Shaders::solid_color;
-    surface->fem_mesh_shader = Shaders::fem_mesh;
-    surface->sphere_mesh = Meshes::sphere;
-    surface->color_map = ColorMaps::viridis;
+    surface->shader = shaders.get("solid_color");
+    surface->fem_mesh_shader = shaders.get("fem_mesh");
+    surface->sphere_mesh = meshes.get("sphere");
+    surface->color_map = color_maps.get("viridis");
 
     solver = std::make_shared<HeatSolver>();
 }
@@ -74,14 +74,10 @@ void Application::render() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
 
-    Shaders::default_shader->bind();
-    Shaders::default_shader->set_mat4x4("view_proj", camera->get_view_projection_matrix());
-    Shaders::solid_color->bind();
-    Shaders::solid_color->set_mat4x4("view_proj", camera->get_view_projection_matrix());
-    Shaders::vertex_color->bind();
-    Shaders::vertex_color->set_mat4x4("view_proj", camera->get_view_projection_matrix());
-    Shaders::fem_mesh->bind();
-    Shaders::fem_mesh->set_mat4x4("view_proj", camera->get_view_projection_matrix());
+    shaders.perform_action_on_all([this](Shader& shader){
+        shader.bind();
+        shader.set_mat4x4("view_proj", this->camera->get_view_projection_matrix()); 
+    });
 
     pslg->draw();
     surface->draw();
