@@ -293,6 +293,14 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
     }
 
 
+    switch (app->settings.interact_mode) {
+        case InteractMode::Brush: {
+            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)) {
+                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f);
+            }
+        } break;
+
+    }
 }
 void scroll_callback(GLFWwindow* window, double dx, double dy) {
     Application* app = (Application*)glfwGetWindowUserPointer(window); 
@@ -355,6 +363,5 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                 app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f);
             }
         } break;
-
     }
 }

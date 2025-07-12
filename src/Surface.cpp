@@ -91,7 +91,8 @@ void Surface::draw() {
 
 /**
  * Set the value of some region on the surface given a world ray and origin.
- * Right now, this sets the value of all 3 nodes on the intersected triangle. 
+ * Right now, this sets the value of the closest vertex to the intersection point. 
+ * Note that the ray must intersect the surface in order for a value to be set. 
  * 
  * @param world_ray The normalized direction vector of the ray derived from mouse picking.
  * @param origin The origin of the world ray.
@@ -100,6 +101,7 @@ void Surface::draw() {
 void Surface::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
     int tri_idx = -1;
     float min_dist = 0.0f;
+    glm::vec3 intersection_point;
 
     for (int i = 0; i < triangles.size() / 3; i++) {
         glm::vec3 A = vertices[triangles[i*3+0]];
@@ -128,15 +130,28 @@ void Surface::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
             if ((pos == 3 || neg == 3) && (tri_idx == -1 || dist < min_dist) && dist > 0.0f) {
                 tri_idx = i;
                 min_dist = dist;
+                intersection_point = point;
             }
         }
     }
 
     if (tri_idx != -1) {
-        for (int i = 0; i < 3; i++)
-            values[triangles[tri_idx*3+i]] = value;
+        int point_idx = -1;
+        float min_point_dist = 0.0f;
+        for (int i = 0; i < 3; i++) {
+            float dist = glm::distance(vertices[triangles[tri_idx*3+i]], intersection_point);
+            if ((point_idx == -1 || dist < min_point_dist) && dist > 0.0f) {
+                min_point_dist = dist;
+                point_idx = i;
+            }
+        }
+        
+        if (point_idx != -1) {
+            values[triangles[tri_idx*3+point_idx]] = value;
+        }
     }
 }
+
 
 /**
  * Resets this surface by clearing all of the data associated with it.
