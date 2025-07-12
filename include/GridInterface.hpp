@@ -7,6 +7,9 @@
 
 #include <memory>
 
+/**
+ * A utility class for drawing a Cartesian grid visual with colored XYZ axis and panning locator.
+ */
 class GridInterface {
 public:  
     glm::vec3 default_color = glm::vec3(0.5f, 0.5f, 0.5f);

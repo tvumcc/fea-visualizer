@@ -2,7 +2,7 @@
 #include <glm/glm.hpp>
 
 /**
- * Represents a camera that rotates in a circle around fixed orbit position.
+ * Represents a camera that rotates in a sphere around fixed orbit position in 3D space.
  */
 class Camera {
 public:

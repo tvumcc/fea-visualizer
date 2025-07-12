@@ -6,8 +6,15 @@
 
 #include <iostream>
 
+// This define is needed so that triangle (the triangulation library this project uses) will function as a library that is callable from code.
 #define TRI_LIBRARY
 
+/**
+ * Initialize this surface with a PSLG via triangulation.
+ * This will automatically cause the PSLG to become open.
+ * 
+ * @param pslg The PSLG to intialize this surface with.
+ */
 bool Surface::init_from_PSLG(PSLG& pslg) {
     if (pslg.closed()) {
         clear();
@@ -23,6 +30,7 @@ bool Surface::init_from_PSLG(PSLG& pslg) {
         }
 
         perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()), pslg.indices.size() / 2, in_holes.data(), pslg.holes.size());
+
         values = std::vector<float>(vertices.size(), 0.0f);
         closed = false;
         initialized = true;
@@ -33,11 +41,20 @@ bool Surface::init_from_PSLG(PSLG& pslg) {
     }
 }
 
+/**
+ * Initialize this surface with a .obj file.
+ * The surface will then become either open or closed depending on the geometry of the mesh. 
+ * 
+ * @param file_path The path to the .obj file with which to initalize the surface.
+ */
 bool Surface::init_from_obj(const char* file_path) {
     clear();
     return true;
 }
 
+/**
+ * Renders this surface to the screen.
+ */
 void Surface::draw() {
     if (initialized) {
         load_value_buffer();
@@ -72,6 +89,14 @@ void Surface::draw() {
     }
 }
 
+/**
+ * Set the value of some region on the surface given a world ray and origin.
+ * Right now, this sets the value of all 3 nodes on the intersected triangle. 
+ * 
+ * @param world_ray The normalized direction vector of the ray derived from mouse picking.
+ * @param origin The origin of the world ray.
+ * @param value The value to set each of the nodal values to. 
+ */
 void Surface::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
     int tri_idx = -1;
     float min_dist = 0.0f;
@@ -113,13 +138,20 @@ void Surface::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
     }
 }
 
+/**
+ * Resets this surface by clearing all of the data associated with it.
+ */
 void Surface::clear() {
     vertices.clear();
     triangles.clear();
     on_boundary.clear();
+    values.clear();
     load_buffers();
 }
 
+/**
+ * Load all OpenGL buffers (including the value buffer) with their respective data.
+ */
 void Surface::load_buffers() {
     glGenVertexArrays(1, &vertex_array);
     glBindVertexArray(vertex_array);
@@ -144,12 +176,25 @@ void Surface::load_buffers() {
     glEnableVertexAttribArray(1);
 }
 
+/**
+ * Load just the OpenGL buffers associated with the nodal values.
+ */
 void Surface::load_value_buffer() {
     glBindVertexArray(vertex_array);
     glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
     glBufferData(GL_ARRAY_BUFFER, values.size() * sizeof(float), values.data(), GL_STATIC_DRAW);
 }
 
+/**
+ * Triangulate a PSLG defined by buffers of data.
+ * 
+ * @param vertices The flattened vertex data as a raw pointer. Every 3 doubles define a 3D position.
+ * @param num_vertcies The number of vertices. This is the number of elements in vertices divided by 3.
+ * @param segments The flattened line data as a raw pointer. Every pair of integers define a line by indexing 2 vertices.
+ * @param num_segments The number of segments. The is the number of elements in segments divided by 2.
+ * @param holes The flattened hole data as a raw pointer. Every 3 double define a 3D position that denote a closed region as a hole.
+ * @param num_holes The number of holes. This is the number of element in holes divided by 3.
+ */
 void Surface::perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes) {
     triangulateio tri_in = {};
     tri_in.pointlist = vertices;

@@ -71,33 +71,40 @@ void Camera::pan(float dx, float dy) {
 }
 
 /**
- * Return the product of the projection and view matrices represented by this camera object.
+ * Return the product of the camera's projection and view matrices.
  */
 glm::mat4 Camera::get_view_projection_matrix() {
     return get_projection_matrix() * get_view_matrix();
 }
+/**
+ * Return the camera's 4x4 view matrix
+ */
 glm::mat4 Camera::get_view_matrix() {
     return glm::lookAt(camera_position, orbit_position, up);
 }
+/**
+ * Return the camera's 4x4 perspective projection matrix.
+ */
 glm::mat4 Camera::get_projection_matrix() {
-    glm::mat4 proj;
-    proj = glm::perspective(fov, aspect_ratio, z_near, z_far);
-    return proj;
+    return glm::perspective(fov, aspect_ratio, z_near, z_far);
 }
 
 /**
- * Return the normalized direction that the camera is currently facing
+ * Return the normalized vector representing the direction that the camera is currently facing.
  */
 glm::vec3 Camera::get_facing_direction() {
     return glm::normalize(orbit_position - camera_position);
 }
 
 /**
- * Return the current position around which the camera is orbiting
+ * Return the current position around which the camera is orbiting.
  */
 glm::vec3 Camera::get_orbit_position() {
     return orbit_position;
 }
+/**
+ * Return the camera's position in 3D space.
+ */
 glm::vec3 Camera::get_camera_position() {
     return camera_position;
 }
@@ -121,6 +128,9 @@ void Camera::set_orbit_position(glm::vec3 new_orbit_position) {
     update_camera_position();
 }
 
+/**
+ * Set the camera's position and direction so that it is facing the XZ plane on the +Y side.
+ */
 void Camera::align_to_plane() {
     yaw = 90.0f;
     pitch = 89.999f;

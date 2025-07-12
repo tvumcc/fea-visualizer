@@ -8,6 +8,10 @@
 #include <optional>
 #include <memory>
 
+/**
+ * Representation of a Planar Straight Line Graph (PSLG) on the XZ plane.
+ * Provides an interface for drawing a PSLG by specifying points and holes with the intent of later being able to triangulate it into a mesh.
+ */
 class PSLG {
 public:
     std::vector<glm::vec3> vertices;

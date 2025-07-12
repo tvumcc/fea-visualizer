@@ -3,6 +3,9 @@
 
 #include "Surface.hpp"
 
+/**
+ * Base class for a Finite Element solver on a surface.
+ */
 class Solver {
 public:
     std::shared_ptr<Surface> surface;

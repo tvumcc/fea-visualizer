@@ -50,11 +50,16 @@ GridInterface::GridInterface() :
     glEnableVertexAttribArray(1);
 }
 
+/**
+ * Render the grid visual to the screen and optionally the panning locator.
+ * 
+ * @param camera The camera whose orbit point to draw (if draw_panning_locator is true) 
+ * @param draw_panning_locator Whether or not to draw the panning locator. This is usually set to true when the user is in the process of panning.
+ */
 void GridInterface::draw(std::shared_ptr<Camera> camera, bool draw_panning_locator) {
     // Draw Grid Lines
     vertex_color_shader->bind();
     vertex_color_shader->set_mat4x4("model", glm::mat4(1.0f));
-    vertex_color_shader->set_mat4x4("view_proj", camera->get_view_projection_matrix());
     glBindVertexArray(vertex_array);
     glDrawArrays(GL_LINES, 0, vertices.size() / 2);
 

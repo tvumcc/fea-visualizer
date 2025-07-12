@@ -4,6 +4,10 @@
 #include "Surface.hpp"
 #include "Solver.hpp"
 
+/**
+ * Solver for the 2D Heat Equation:
+ * u_t = a * u_xx
+ */
 class HeatSolver : public Solver {
 public:
     float conductivity = 0.05f;

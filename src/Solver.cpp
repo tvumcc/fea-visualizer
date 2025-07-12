@@ -4,6 +4,9 @@
 
 #include "Solver.hpp"
 
+/**
+ * Initialize the solver only if the associated surface is initialized.
+ */
 void Solver::init() {
     if (surface) {
         int idx = 0;
@@ -16,11 +19,18 @@ void Solver::init() {
     }
 }
 
+/**
+ * Assemble all of the matrices needed for solving.
+ */
 void Solver::assemble() {
     assemble_stiffness_matrix();
     assemble_mass_matrix();
 }
 
+/**
+ * Assemble the stiffness matrix.
+ * This matrix is comprised of integrals of ∂_x(phi_i) * ∂_x(phi_j) over the problem domain, where phi is a linear basis function.
+ */
 void Solver::assemble_stiffness_matrix() {
     int num_elements = surface->triangles.size() / 3;
     int num_nodes = surface->vertices.size() - surface->num_boundary_points; // For Dirichlet BCs
@@ -67,6 +77,10 @@ void Solver::assemble_stiffness_matrix() {
     stiffness_matrix.setFromTriplets(matrix_entries.begin(), matrix_entries.end());
 }
 
+/**
+ * Assemble the mass matrix.
+ * This matrix is comprised of integrals of phi_i * phi_j over the problem domain, where phi is a linear basis function.
+ */
 void Solver::assemble_mass_matrix() {
     int num_elements = surface->triangles.size() / 3;
     int num_nodes = surface->vertices.size() - surface->num_boundary_points; // For Dirichlet BCs
@@ -103,6 +117,9 @@ void Solver::assemble_mass_matrix() {
     mass_matrix.makeCompressed();
 }
 
+/**
+ * Map values from the surface to an Eigen::VectorXf while ignoring the boundary nodes.
+ */
 Eigen::VectorXf Solver::get_solution_vector() {
     Eigen::VectorXf solution_vector;
     solution_vector.resize(surface->vertices.size() - surface->num_boundary_points);
@@ -113,6 +130,9 @@ Eigen::VectorXf Solver::get_solution_vector() {
     return solution_vector;
 }
 
+/**
+ * Map values from an Eigen::VectorXf back onto the surface while ignoring the boundary nodes.
+ */
 void Solver::map_solution_vector_to_surface(Eigen::VectorXf solution_vector) {
     for (int i = 0; i < idx_map.size(); i++) {
         if (idx_map[i] != -1) {

@@ -10,6 +10,9 @@
 #include <array>
 #include <memory>
 
+/**
+ * Represents a triangulated surface, that can be either planar or closed, that exists in 3D space.
+ */
 class Surface {
 public:
     std::vector<glm::vec3> vertices;
@@ -33,9 +36,10 @@ public:
     void draw();
     void clear();
     void brush(glm::vec3 world_ray, glm::vec3 origin, float value);
+private:
+    unsigned int vertex_buffer, value_buffer, element_buffer, vertex_array;
+
     void load_buffers();
     void load_value_buffer();
     void perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes);
-private:
-    unsigned int vertex_buffer, value_buffer, element_buffer, vertex_array;
 };

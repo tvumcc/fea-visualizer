@@ -6,6 +6,10 @@
 #include <array>
 #include <string>
 
+/**
+ * A color map encoded by an order 6 polynomial.
+ * All coefficients are taken from https://www.shadertoy.com/view/Nd3fR2.
+ */
 class ColorMap {
 public:
     std::string name;

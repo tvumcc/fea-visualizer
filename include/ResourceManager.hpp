@@ -6,6 +6,10 @@
 #include <format>
 #include <functional>
 
+/**
+ * A manager that maps a collection of resources to their names.
+ * This is essentially an extensible alias for unordered_map.
+ */
 template <typename T>
 class ResourceManager {
 public:

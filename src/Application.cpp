@@ -9,7 +9,7 @@
 
 Application::Application() {
     init_opengl_window(window_width, window_height);
-    init_imgui("assets/NotoSans.ttf", 30);
+    init_imgui("assets/NotoSans.ttf", 20);
 
     load_resources();
     load();
