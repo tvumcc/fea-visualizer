@@ -33,7 +33,7 @@ public:
     bool init_from_PSLG(PSLG& pslg);
     bool init_from_obj(const char* file_path);
 
-    void draw();
+    void draw(bool wireframe);
     void clear();
     void brush(glm::vec3 world_ray, glm::vec3 origin, float value);
 private:

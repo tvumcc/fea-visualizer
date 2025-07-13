@@ -5,6 +5,9 @@
 #include <Surface.hpp>
 
 #include <iostream>
+#include <unordered_map>
+#include <unordered_set>
+#include <format>
 
 // This define is needed so that triangle (the triangulation library this project uses) will function as a library that is callable from code.
 #define TRI_LIBRARY
@@ -49,13 +52,68 @@ bool Surface::init_from_PSLG(PSLG& pslg) {
  */
 bool Surface::init_from_obj(const char* file_path) {
     clear();
+    tinyobj::ObjReader reader;
+    tinyobj::ObjReaderConfig reader_config;
+    reader_config.triangulate = true;
+
+    if (!reader.ParseFromFile(file_path, reader_config)) {
+        if (!reader.Error().empty())
+            std::cerr << "[ERROR] TinyObjReader: " << reader.Error();
+        exit(1);
+    }
+
+    auto& attrib = reader.GetAttrib();
+    auto& shapes = reader.GetShapes();
+    
+    for (int s = 0; s < shapes.size(); s++) {
+        int index_offset = 0;
+        for (int i = 0; i < attrib.vertices.size() / 3; i++) {
+            vertices.push_back(glm::vec3(attrib.vertices[i*3+0], attrib.vertices[i*3+1], attrib.vertices[i*3+2]));
+        }
+
+        for (int i = 0; i < shapes[s].mesh.indices.size() / 3; i++) {
+            for (int j = 0; j < 3; j++)
+                triangles.push_back(shapes[s].mesh.indices[i*3+j].vertex_index);
+        }
+    }
+
+    std::unordered_map<unsigned int, std::unordered_map<unsigned int, int>> edges;
+    on_boundary = std::vector<bool>(vertices.size(), false);
+    for (int i = 0; i < triangles.size() / 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            unsigned int idx_a = triangles[i*3+j];
+            unsigned int idx_b = triangles[i*3+((j+1) % 3)];
+            edges[idx_a][idx_b]++;
+            edges[idx_b][idx_a]++;
+        }
+    }
+
+    for (auto a : edges) {
+        for (auto b : a.second) {
+            if (b.second == 1) {
+                on_boundary[a.first] = true;
+                on_boundary[b.first] = true;
+            } 
+        }
+    }
+
+    num_boundary_points = 0;
+    for (int i = 0; i < on_boundary.size(); i++)
+        if (on_boundary[i])
+            num_boundary_points++;
+
+    values = std::vector<float>(vertices.size(), 0.0f);
+    closed = num_boundary_points == 0;
+    initialized = true;
+    load_buffers(); 
+
     return true;
 }
 
 /**
  * Renders this surface to the screen.
  */
-void Surface::draw() {
+void Surface::draw(bool wireframe) {
     if (initialized) {
         load_value_buffer();
 
@@ -67,25 +125,27 @@ void Surface::draw() {
         glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
 
         // Draw Wireframe
-        shader->bind();
-        shader->set_mat4x4("model", glm::mat4(1.0f));
-        shader->set_vec3("object_color", EDGE_COLOR);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glDepthFunc(GL_LEQUAL);
-        glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
-        glDepthFunc(GL_LESS);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-        // TODO: Switch to instancing for faster rendering
-        for (int i = 0; i < vertices.size(); i++) {
+        if (wireframe) {
             shader->bind();
-            shader->set_vec3("object_color", color_map->get_color(values[i]));
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, vertices[i]);
-            model = glm::scale(model, glm::vec3(0.02f));
-            shader->set_mat4x4("model", model);
-            sphere_mesh->draw(*shader, GL_TRIANGLES);
+            shader->set_mat4x4("model", glm::mat4(1.0f));
+            shader->set_vec3("object_color", EDGE_COLOR);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            glDepthFunc(GL_LEQUAL);
+            glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
+            glDepthFunc(GL_LESS);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
+
+        // // TODO: Switch to instancing for faster rendering
+        // for (int i = 0; i < vertices.size(); i++) {
+        //     shader->bind();
+        //     shader->set_vec3("object_color", color_map->get_color(values[i]));
+        //     glm::mat4 model = glm::mat4(1.0f);
+        //     model = glm::translate(model, vertices[i]);
+        //     model = glm::scale(model, glm::vec3(0.02f));
+        //     shader->set_mat4x4("model", model);
+        //     sphere_mesh->draw(*shader, GL_TRIANGLES);
+        // }
     }
 }
 

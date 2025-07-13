@@ -23,6 +23,7 @@ enum class InteractMode {
 
 struct Settings {
     InteractMode interact_mode = InteractMode::Idle;
+    bool draw_surface_wireframe = true;
 };
 
 class Application {

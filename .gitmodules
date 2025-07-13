@@ -16,3 +16,6 @@
 [submodule "lib/eigen"]
 	path = lib/eigen
 	url = https://gitlab.com/libeigen/eigen.git
+[submodule "lib/nativefiledialog"]
+	path = lib/nativefiledialog
+	url = https://github.com/mlabbe/nativefiledialog.git

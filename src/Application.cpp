@@ -2,6 +2,7 @@
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_opengl3.h>
 #include <glm/gtc/matrix_inverse.hpp>
+#include <nfd.h>
 
 #include "Application.hpp"
 
@@ -80,7 +81,7 @@ void Application::render() {
     });
 
     pslg->draw();
-    surface->draw();
+    surface->draw(settings.draw_surface_wireframe);
     grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
 }
 void Application::run() {
@@ -151,6 +152,12 @@ void Application::render_gui() {
     if (ImGui::Button("Time Step")) {
         solver->advance_time();
     }
+    if (ImGui::Button("Import .obj")) {
+        nfdchar_t *out_path = NULL;		
+        nfdresult_t result = NFD_OpenDialog(NULL, NULL, &out_path);
+        surface->init_from_obj(out_path);
+    }
+    ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
 
     if (ImGui::BeginPopupModal("PSLG Incomplete", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
         ImGui::Text("PSLG must be complete and closed to triangulate.");

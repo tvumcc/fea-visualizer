@@ -17,14 +17,30 @@ include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/tinyobjloader
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/eigen
+	${CMAKE_CURRENT_SOURCE_DIR}/lib/nativefiledialog/src/include
+	${CMAKE_CURRENT_SOURCE_DIR}/lib/nativefiledialog/src/
 )
 
 add_compile_definitions(NO_TIMER ANSI_DECLARATORS TRILIBRARY)
 
 
 file(GLOB_RECURSE SRC_FILES src/*.cpp)
+
+# See https://github.com/mlabbe/nativefiledialog?tab=readme-ov-file#compiling-your-programs for more details
+if (WIN32)
+	set(NFD_OS_FILE lib/nativefiledialog/src/nfd_win.cpp)
+elseif (UNIX)
+	set(NFD_OS_FILE lib/nativefiledialog/src/nfd_zenity.c)
+else()
+	message("Can't determine which OS specific file to compile for nativefiledialog.")
+endif()
+
 add_executable(${CMAKE_PROJECT_NAME}
 	${SRC_FILES}
+
+	# nativefiledialog
+	lib/nativefiledialog/src/nfd_common.c
+	${NFD_OS_FILE}
 
 	# GLAD
 	lib/glad/src/glad.c
