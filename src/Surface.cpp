@@ -34,6 +34,7 @@ bool Surface::init_from_PSLG(PSLG& pslg) {
 
         perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()), pslg.indices.size() / 2, in_holes.data(), pslg.holes.size());
 
+        normals = std::vector<glm::vec3>(vertices.size(), glm::vec3(0.0f, 1.0f, 0.0f)); // Normals to the XZ always point in the +Y direction.
         values = std::vector<float>(vertices.size(), 0.0f);
         closed = false;
         initialized = true;
@@ -72,10 +73,24 @@ bool Surface::init_from_obj(const char* file_path) {
         }
 
         for (int i = 0; i < shapes[s].mesh.indices.size() / 3; i++) {
-            for (int j = 0; j < 3; j++)
+            for (int j = 0; j < 3; j++) {
                 triangles.push_back(shapes[s].mesh.indices[i*3+j].vertex_index);
+            }
         }
     }
+
+    normals = std::vector<glm::vec3>(vertices.size(), glm::vec3(0.0f, 0.0f, 0.0f));
+    for (int s = 0; s < shapes.size(); s++) {
+        for (int i = 0; i < shapes[s].mesh.indices.size(); i++) {
+            normals[shapes[s].mesh.indices[i].vertex_index] += glm::vec3(
+                attrib.normals[shapes[s].mesh.indices[i].normal_index*3+0],
+                attrib.normals[shapes[s].mesh.indices[i].normal_index*3+1],
+                attrib.normals[shapes[s].mesh.indices[i].normal_index*3+2]
+            );
+        }
+    }
+    for (int i = 0; i < normals.size(); i++)
+        normals[i] = glm::normalize(normals[i]);
 
     std::unordered_map<unsigned int, std::unordered_map<unsigned int, int>> edges;
     on_boundary = std::vector<bool>(vertices.size(), false);
@@ -126,26 +141,15 @@ void Surface::draw(bool wireframe) {
 
         // Draw Wireframe
         if (wireframe) {
-            shader->bind();
-            shader->set_mat4x4("model", glm::mat4(1.0f));
-            shader->set_vec3("object_color", EDGE_COLOR);
+            wireframe_shader->bind();
+            wireframe_shader->set_mat4x4("model", glm::mat4(1.0f));
+            wireframe_shader->set_vec3("object_color", EDGE_COLOR);
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
             glDepthFunc(GL_LEQUAL);
             glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
             glDepthFunc(GL_LESS);
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
-
-        // // TODO: Switch to instancing for faster rendering
-        // for (int i = 0; i < vertices.size(); i++) {
-        //     shader->bind();
-        //     shader->set_vec3("object_color", color_map->get_color(values[i]));
-        //     glm::mat4 model = glm::mat4(1.0f);
-        //     model = glm::translate(model, vertices[i]);
-        //     model = glm::scale(model, glm::vec3(0.02f));
-        //     shader->set_mat4x4("model", model);
-        //     sphere_mesh->draw(*shader, GL_TRIANGLES);
-        // }
     }
 }
 
@@ -242,6 +246,10 @@ void Surface::load_buffers() {
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
 
+    glGenBuffers(1, &normal_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, normal_buffer);
+    glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(glm::vec3), normals.data(), GL_STATIC_DRAW);
+
     glGenBuffers(1, &value_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
     glBufferData(GL_ARRAY_BUFFER, values.size() * sizeof(float), values.data(), GL_STATIC_DRAW);
@@ -253,9 +261,12 @@ void Surface::load_buffers() {
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
     glEnableVertexAttribArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
-    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glBindBuffer(GL_ARRAY_BUFFER, normal_buffer);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
     glEnableVertexAttribArray(1);
+    glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(2);
 }
 
 /**

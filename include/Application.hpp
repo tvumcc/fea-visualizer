@@ -11,6 +11,7 @@
 #include "ColorMap.hpp"
 #include "Solver.hpp"
 #include "ResourceManager.hpp"
+#include "BVH.hpp"
 
 #include <memory>
 
@@ -39,6 +40,7 @@ public:
     std::shared_ptr<PSLG> pslg;
     std::shared_ptr<Surface> surface;
     std::shared_ptr<Solver> solver;
+    std::shared_ptr<BVH> bvh;
 
     ResourceManager<Mesh> meshes;
     ResourceManager<Shader> shaders;

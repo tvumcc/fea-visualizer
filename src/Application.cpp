@@ -31,10 +31,11 @@ void Application::load_resources() {
     meshes.add("sphere", std::make_shared<Mesh>("assets/sphere.obj"));
 
     // Shaders
-    shaders.add("default_shader", std::make_shared<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"));
+    shaders.add("default", std::make_shared<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"));
     shaders.add("solid_color", std::make_shared<Shader>("shaders/solid_color_vert.glsl", "shaders/solid_color_frag.glsl"));
     shaders.add("vertex_color", std::make_shared<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"));
     shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
+    shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
 
     // Color Maps
     color_maps.add("viridis", std::make_shared<ColorMap>(
@@ -64,7 +65,7 @@ void Application::load() {
     pslg->sphere_mesh = meshes.get("sphere");
 
     surface = std::make_shared<Surface>();
-    surface->shader = shaders.get("solid_color");
+    surface->wireframe_shader = shaders.get("wireframe");
     surface->fem_mesh_shader = shaders.get("fem_mesh");
     surface->sphere_mesh = meshes.get("sphere");
     surface->color_map = color_maps.get("viridis");
@@ -161,6 +162,7 @@ void Application::render_gui() {
         nfdchar_t *out_path = NULL;		
         nfdresult_t result = NFD_OpenDialog(NULL, NULL, &out_path);
         surface->init_from_obj(out_path);
+        bvh = std::make_unique<BVH>(surface, 3);
     }
     ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
 

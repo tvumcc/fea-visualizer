@@ -16,11 +16,12 @@
 class Surface {
 public:
     std::vector<glm::vec3> vertices;
+    std::vector<glm::vec3> normals;
     std::vector<float> values;
     std::vector<unsigned int> triangles;
     std::vector<bool> on_boundary;
 
-    std::shared_ptr<Shader> shader;
+    std::shared_ptr<Shader> wireframe_shader;
     std::shared_ptr<Shader> fem_mesh_shader;
     std::shared_ptr<Mesh> sphere_mesh;
     std::shared_ptr<ColorMap> color_map;
@@ -39,7 +40,7 @@ public:
 
     int num_unknown_nodes();
 private:
-    unsigned int vertex_buffer, value_buffer, element_buffer, vertex_array;
+    unsigned int vertex_buffer, value_buffer, normal_buffer, element_buffer, vertex_array;
 
     void load_buffers();
     void load_value_buffer();

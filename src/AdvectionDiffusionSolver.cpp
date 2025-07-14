@@ -4,8 +4,6 @@
 
 #include "AdvectionDiffusionSolver.hpp"
 
-#include <iostream>
-
 void AdvectionDiffusionSolver::assemble() {
     assemble_stiffness_matrix();
     assemble_mass_matrix();
