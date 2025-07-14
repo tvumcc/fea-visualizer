@@ -14,12 +14,12 @@ public:
     Eigen::SparseMatrix<float> stiffness_matrix;
     Eigen::SparseMatrix<float> mass_matrix;
 
-    virtual void init();
+    void init();
     virtual void advance_time() = 0;
 protected:
     void assemble_stiffness_matrix();
     void assemble_mass_matrix();
     virtual void assemble();
-    Eigen::VectorXf get_solution_vector();
-    void map_solution_vector_to_surface(Eigen::VectorXf solution_vector);
+    Eigen::VectorXf get_surface_value_vector();
+    void map_vector_to_surface(Eigen::VectorXf solution_vector);
 };

@@ -5,6 +5,9 @@
 #include <nfd.h>
 
 #include "Application.hpp"
+#include "HeatSolver.hpp"
+#include "WaveSolver.hpp"
+#include "AdvectionDiffusionSolver.hpp"
 
 #include <iostream>
 
@@ -66,7 +69,7 @@ void Application::load() {
     surface->sphere_mesh = meshes.get("sphere");
     surface->color_map = color_maps.get("viridis");
 
-    solver = std::make_shared<HeatSolver>();
+    solver = std::make_shared<AdvectionDiffusionSolver>();
 }
 
 void Application::render() {
@@ -136,6 +139,7 @@ void Application::render_gui() {
     }
     if (ImGui::Button("Clear Surface")) {
         surface->clear();
+        solver->surface = nullptr;
     }
     if (!pslg->holes.empty()) {
         if (ImGui::Button("Clear Holes")) {
@@ -149,9 +153,10 @@ void Application::render_gui() {
         solver->surface = surface;
         solver->init();
     }
-    if (ImGui::Button("Time Step")) {
+    // if (ImGui::Button("Time Step")) {
+    if (solver->surface)
         solver->advance_time();
-    }
+    // }
     if (ImGui::Button("Import .obj")) {
         nfdchar_t *out_path = NULL;		
         nfdresult_t result = NFD_OpenDialog(NULL, NULL, &out_path);

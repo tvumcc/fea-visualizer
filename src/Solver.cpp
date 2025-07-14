@@ -33,7 +33,7 @@ void Solver::assemble() {
  */
 void Solver::assemble_stiffness_matrix() {
     int num_elements = surface->triangles.size() / 3;
-    int num_nodes = surface->vertices.size() - surface->num_boundary_points; // For Dirichlet BCs
+    int num_nodes = surface->num_unknown_nodes(); // For Dirichlet BCs
 
     std::vector<Eigen::Triplet<float>> matrix_entries;
     for (int k = 0; k < num_elements; k++) {
@@ -41,6 +41,7 @@ void Solver::assemble_stiffness_matrix() {
         glm::vec3 b = surface->vertices[surface->triangles[k * 3 + 1]];
         glm::vec3 c = surface->vertices[surface->triangles[k * 3 + 2]];
         glm::vec3 normal = glm::normalize(glm::cross(b - a, c - a));
+        float area = 0.5f * glm::length(glm::cross(b - a, c - a));
 
         std::array<Eigen::Vector3f, 3> reference_gradients = {
             Eigen::Vector3f {-1.0, -1.0, 0.0},
@@ -66,7 +67,7 @@ void Solver::assemble_stiffness_matrix() {
                     matrix_entries.push_back(Eigen::Triplet<float>(
                         idx_map[surface->triangles[k * 3 + i]],
                         idx_map[surface->triangles[k * 3 + j]], 
-                        physical_gradients[i].dot(physical_gradients[j])
+                        area * physical_gradients[i].dot(physical_gradients[j])
                     ));
                 }
             }
@@ -83,7 +84,7 @@ void Solver::assemble_stiffness_matrix() {
  */
 void Solver::assemble_mass_matrix() {
     int num_elements = surface->triangles.size() / 3;
-    int num_nodes = surface->vertices.size() - surface->num_boundary_points; // For Dirichlet BCs
+    int num_nodes = surface->num_unknown_nodes(); // For Dirichlet BCs
 
     std::vector<Eigen::Triplet<float>> matrix_entries;
     for (int k = 0; k < num_elements; k++) {
@@ -120,23 +121,23 @@ void Solver::assemble_mass_matrix() {
 /**
  * Map values from the surface to an Eigen::VectorXf while ignoring the boundary nodes.
  */
-Eigen::VectorXf Solver::get_solution_vector() {
-    Eigen::VectorXf solution_vector;
-    solution_vector.resize(surface->vertices.size() - surface->num_boundary_points);
+Eigen::VectorXf Solver::get_surface_value_vector() {
+    Eigen::VectorXf vector;
+    vector.resize(surface->vertices.size() - surface->num_boundary_points);
     for (int i = 0; i < idx_map.size(); i++)
         if (idx_map[i] != -1)
-            solution_vector.coeffRef(idx_map[i], 0) = surface->values[i];
+            vector.coeffRef(idx_map[i], 0) = surface->values[i];
 
-    return solution_vector;
+    return vector;
 }
 
 /**
  * Map values from an Eigen::VectorXf back onto the surface while ignoring the boundary nodes.
  */
-void Solver::map_solution_vector_to_surface(Eigen::VectorXf solution_vector) {
+void Solver::map_vector_to_surface(Eigen::VectorXf vector) {
     for (int i = 0; i < idx_map.size(); i++) {
         if (idx_map[i] != -1) {
-            surface->values[i] = solution_vector.coeff(idx_map[i], 0);
+            surface->values[i] = vector.coeff(idx_map[i], 0);
         } else {
             surface->values[i] = 0.0f;
         }

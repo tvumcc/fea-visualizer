@@ -36,6 +36,8 @@ public:
     void draw(bool wireframe);
     void clear();
     void brush(glm::vec3 world_ray, glm::vec3 origin, float value);
+
+    int num_unknown_nodes();
 private:
     unsigned int vertex_buffer, value_buffer, element_buffer, vertex_array;
 

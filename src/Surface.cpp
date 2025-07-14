@@ -225,6 +225,13 @@ void Surface::clear() {
 }
 
 /**
+ * Returns the total number of vertices minus the number of vertices lying on the boundary of the domain.
+ */
+int Surface::num_unknown_nodes() {
+    return vertices.size() - num_boundary_points;
+}
+
+/**
  * Load all OpenGL buffers (including the value buffer) with their respective data.
  */
 void Surface::load_buffers() {

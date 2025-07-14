@@ -9,7 +9,7 @@
 #include "PSLG.hpp"
 #include "Surface.hpp"
 #include "ColorMap.hpp"
-#include "HeatSolver.hpp"
+#include "Solver.hpp"
 #include "ResourceManager.hpp"
 
 #include <memory>

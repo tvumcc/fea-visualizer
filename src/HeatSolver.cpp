@@ -6,15 +6,22 @@
 
 #include <iostream>
 
-void HeatSolver::advance_time() {
-    Eigen::VectorXf solution_vector = get_solution_vector();
+void HeatSolver::assemble() {
+    assemble_stiffness_matrix();
+    assemble_mass_matrix();
+    u.resize(surface->num_unknown_nodes());
+    u.setZero();
+}
 
-    Eigen::VectorXf b = (mass_matrix / time_step) * solution_vector;
+void HeatSolver::advance_time() {
+    u = get_surface_value_vector();
+
     Eigen::SparseMatrix<float> A = (mass_matrix / time_step) + (conductivity * stiffness_matrix);
+    Eigen::VectorXf b = (mass_matrix / time_step) * u;
 
     Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower|Eigen::Upper> cg;
     cg.compute(A);
-    solution_vector = cg.solve(b);
+    u = cg.solve(b);
 
-    map_solution_vector_to_surface(solution_vector);
+    map_vector_to_surface(u);
 }
