@@ -6,42 +6,46 @@
 #include <vector>
 #include <memory>
 
-struct Triangle {
-    unsigned int idx_a;
-    unsigned int idx_b;
-    unsigned int idx_c;
 
-    unsigned int operator[](int idx) {
-        switch (idx) {
-            case 0: return idx_a;
-            case 1: return idx_b;
-            default: return idx_c;
-        }
-    }
+struct RayTriangleIntersection {
+    glm::vec3 point = glm::vec3(0.0f, 0.0f, 0.0f);
+    float distance = 0.0f;
+    int tri_idx = -1;
 };
 
-struct Intersection {
-    glm::vec3 point;
-    unsigned int tri_idx;
+struct RayAABBIntersection {
+    float t_min;
+    float t_max;
+
+    bool hit() {
+        return t_max >= t_min;
+    }
 };
 
 class BVHNode {
 public:
     glm::vec3 point_a;
     glm::vec3 point_b;
-    std::unique_ptr<BVHNode> child_a;
-    std::unique_ptr<BVHNode> child_b;
+    std::shared_ptr<BVHNode> child_a;
+    std::shared_ptr<BVHNode> child_b;
     int depth;
     bool leaf; // If this is false, then triangles should be empty
 
     std::shared_ptr<Surface> surface;
-    std::vector<Triangle> triangles;
+    std::vector<unsigned int> triangle_indices;
 
     BVHNode();
     BVHNode(std::shared_ptr<Surface> surface, int depth);
     void split();
     void divide(int depth, int max_depth);
     void update_bounds();
+    RayAABBIntersection ray_aabb_intersection(glm::vec3 origin, glm::vec3 direction);
+    RayTriangleIntersection ray_triangle_intersection(glm::vec3 origin, glm::vec3 direction);
+
+    // Rendering
+    unsigned int vertex_buffer, vertex_array;
+    void draw();
+    void load_buffers();
 };
 
 class BVH {
@@ -52,6 +56,13 @@ public:
 
     BVH();
     BVH(std::shared_ptr<Surface> surface, int max_depth);
-    Intersection get_triangle_intersection();
+    RayTriangleIntersection ray_triangle_intersection(glm::vec3 origin, glm::vec3 direction);
     int get_closest_vertex_intersection();
+
+    // Rendering
+    std::shared_ptr<Shader> shader;
+    void draw(int max_depth);
+    void draw(int max_depth, int depth, BVHNode& node);
+private:
+    void ray_triangle_intersection(glm::vec3 origin, glm::vec3 direction, BVHNode& node, std::vector<RayTriangleIntersection>& intersections);
 };

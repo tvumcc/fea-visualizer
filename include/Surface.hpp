@@ -10,6 +10,23 @@
 #include <array>
 #include <memory>
 
+struct RayTriangleIntersection;
+class BVH;
+
+struct Triangle {
+    unsigned int idx_a;
+    unsigned int idx_b;
+    unsigned int idx_c;
+
+    unsigned int& operator[](int idx) {
+        switch (idx) {
+            case 0: return idx_a;
+            case 1: return idx_b;
+            default: return idx_c;
+        }
+    }
+};
+
 /**
  * Represents a triangulated surface, that can be either planar or closed, that exists in 3D space.
  */
@@ -18,7 +35,7 @@ public:
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec3> normals;
     std::vector<float> values;
-    std::vector<unsigned int> triangles;
+    std::vector<Triangle> triangles;
     std::vector<bool> on_boundary;
 
     std::shared_ptr<Shader> wireframe_shader;
@@ -36,7 +53,7 @@ public:
 
     void draw(bool wireframe);
     void clear();
-    void brush(glm::vec3 world_ray, glm::vec3 origin, float value);
+    void brush(glm::vec3 world_ray, glm::vec3 origin, float value, BVH& bvh);
 
     int num_unknown_nodes();
 private:

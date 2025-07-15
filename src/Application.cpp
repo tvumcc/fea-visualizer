@@ -87,6 +87,7 @@ void Application::render() {
     pslg->draw();
     surface->draw(settings.draw_surface_wireframe);
     grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
+    if (bvh) bvh->draw(bvh->max_depth-1);
 }
 void Application::run() {
     while (!glfwWindowShouldClose(window)) {
@@ -136,11 +137,14 @@ void Application::render_gui() {
         }
         if (ImGui::Button("Triangulate PSLG")) {
             surface->init_from_PSLG(*pslg);
+            bvh = std::make_unique<BVH>(surface, 10);
+            bvh->shader = shaders.get("solid_color");
         }
     }
     if (ImGui::Button("Clear Surface")) {
         surface->clear();
         solver->surface = nullptr;
+        bvh = nullptr;
     }
     if (!pslg->holes.empty()) {
         if (ImGui::Button("Clear Holes")) {
@@ -162,7 +166,8 @@ void Application::render_gui() {
         nfdchar_t *out_path = NULL;		
         nfdresult_t result = NFD_OpenDialog(NULL, NULL, &out_path);
         surface->init_from_obj(out_path);
-        bvh = std::make_unique<BVH>(surface, 3);
+        bvh = std::make_unique<BVH>(surface, 8);
+        bvh->shader = shaders.get("solid_color");
     }
     ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
 
@@ -297,7 +302,7 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
 	last_y = (float)y;
 
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-        app->camera->pan(dx, dy);
+        app->camera->pan(-dx, -dy);
     }
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
         app->camera->rotate(dx, dy);
@@ -310,7 +315,7 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
     switch (app->settings.interact_mode) {
         case InteractMode::Brush: {
             if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)) {
-                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f);
+                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f, *app->bvh);
             }
         } break;
 
@@ -374,7 +379,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         } break;
         case InteractMode::Brush: {
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
-                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f);
+                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f, *app->bvh);
             }
         } break;
     }

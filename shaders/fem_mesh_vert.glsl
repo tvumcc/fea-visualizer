@@ -10,5 +10,5 @@ out float value;
 
 void main() {
     value = aValue;
-    gl_Position = view_proj * (model * vec4(aValue * aNormal + aPos, 1.0));
+    gl_Position = view_proj * (model * vec4(min(1.0, aValue) * aNormal + aPos, 1.0));
 }

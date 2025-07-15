@@ -2,7 +2,8 @@
 #include <triangle/triangle.h>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <Surface.hpp>
+#include "Surface.hpp"
+#include "BVH.hpp"
 
 #include <iostream>
 #include <unordered_map>
@@ -73,9 +74,10 @@ bool Surface::init_from_obj(const char* file_path) {
         }
 
         for (int i = 0; i < shapes[s].mesh.indices.size() / 3; i++) {
-            for (int j = 0; j < 3; j++) {
-                triangles.push_back(shapes[s].mesh.indices[i*3+j].vertex_index);
-            }
+            Triangle triangle;
+            for (int j = 0; j < 3; j++)
+                triangle[j] = shapes[s].mesh.indices[i*3+j].vertex_index;
+            triangles.push_back(triangle);
         }
     }
 
@@ -94,10 +96,10 @@ bool Surface::init_from_obj(const char* file_path) {
 
     std::unordered_map<unsigned int, std::unordered_map<unsigned int, int>> edges;
     on_boundary = std::vector<bool>(vertices.size(), false);
-    for (int i = 0; i < triangles.size() / 3; i++) {
+    for (int i = 0; i < triangles.size(); i++) {
         for (int j = 0; j < 3; j++) {
-            unsigned int idx_a = triangles[i*3+j];
-            unsigned int idx_b = triangles[i*3+((j+1) % 3)];
+            unsigned int idx_a = triangles[i][j];
+            unsigned int idx_b = triangles[i][(j + 1) % 3];
             edges[idx_a][idx_b]++;
             edges[idx_b][idx_a]++;
         }
@@ -137,7 +139,7 @@ void Surface::draw(bool wireframe) {
         fem_mesh_shader->set_mat4x4("model", glm::mat4(1.0f));
         color_map->set_uniforms(*fem_mesh_shader);
         glBindVertexArray(vertex_array);
-        glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, triangles.size() * 3, GL_UNSIGNED_INT, 0);
 
         // Draw Wireframe
         if (wireframe) {
@@ -146,7 +148,7 @@ void Surface::draw(bool wireframe) {
             wireframe_shader->set_vec3("object_color", EDGE_COLOR);
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
             glDepthFunc(GL_LEQUAL);
-            glDrawElements(GL_TRIANGLES, triangles.size(), GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_TRIANGLES, triangles.size() * 3, GL_UNSIGNED_INT, 0);
             glDepthFunc(GL_LESS);
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
@@ -162,48 +164,14 @@ void Surface::draw(bool wireframe) {
  * @param origin The origin of the world ray.
  * @param value The value to set each of the nodal values to. 
  */
-void Surface::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
-    int tri_idx = -1;
-    float min_dist = 0.0f;
-    glm::vec3 intersection_point;
+void Surface::brush(glm::vec3 world_ray, glm::vec3 origin, float value, BVH& bvh) {
+    RayTriangleIntersection intersection = bvh.ray_triangle_intersection(origin, world_ray);
 
-    for (int i = 0; i < triangles.size() / 3; i++) {
-        glm::vec3 A = vertices[triangles[i*3+0]];
-        glm::vec3 B = vertices[triangles[i*3+1]];
-        glm::vec3 C = vertices[triangles[i*3+2]];
-        glm::vec3 center = (A + B + C) / 3.0f;
-
-        glm::vec3 normal = glm::normalize(glm::cross(B - A, C - A));
-        float denom = glm::dot(world_ray, normal);
-
-        if (std::abs(denom) > 1e-6) {
-            float dist = -glm::dot(origin - center, normal) / denom;
-            glm::vec3 point = origin + world_ray * dist;
-
-            int pos = 0, neg = 0;
-
-            for (int j = 0; j < 3; j++) {
-                glm::vec3 p1 = vertices[triangles[i*3+j]];
-                glm::vec3 p2 = vertices[triangles[i*3+((j+1) % 3)]];
-
-                glm::vec3 perpVector = glm::cross(normal, p2 - p1);
-                if (glm::dot(perpVector, point - p1) < 0.0f) neg++;
-                else pos++;
-            }
-
-            if ((pos == 3 || neg == 3) && (tri_idx == -1 || dist < min_dist) && dist > 0.0f) {
-                tri_idx = i;
-                min_dist = dist;
-                intersection_point = point;
-            }
-        }
-    }
-
-    if (tri_idx != -1) {
+    if (intersection.tri_idx != -1) {
         int point_idx = -1;
         float min_point_dist = 0.0f;
         for (int i = 0; i < 3; i++) {
-            float dist = glm::distance(vertices[triangles[tri_idx*3+i]], intersection_point);
+            float dist = glm::distance(vertices[triangles[intersection.tri_idx][i]], intersection.point);
             if ((point_idx == -1 || dist < min_point_dist) && dist > 0.0f) {
                 min_point_dist = dist;
                 point_idx = i;
@@ -211,7 +179,7 @@ void Surface::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
         }
         
         if (point_idx != -1) {
-            values[triangles[tri_idx*3+point_idx]] = value;
+            values[triangles[intersection.tri_idx][point_idx]] = value;
         }
     }
 }
@@ -256,7 +224,7 @@ void Surface::load_buffers() {
 
     glGenBuffers(1, &element_buffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size() * sizeof(unsigned int), triangles.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size() * sizeof(Triangle), triangles.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
@@ -322,9 +290,13 @@ void Surface::perform_triangulation(double* vertices, int num_vertices, int* seg
         );
     }
 
-    triangles = std::vector<unsigned int>(tri_out.numberoftriangles * 3, 0);
-    for (int i = 0; i < triangles.size(); i++)
-        triangles[i] = tri_out.trianglelist[i]; 
+    for (int i = 0; i < tri_out.numberoftriangles; i++) {
+        Triangle triangle;
+        for (int j = 0; j < 3; j++) {
+            triangle[j] = tri_out.trianglelist[i*3+j];
+        }
+        triangles.push_back(triangle);
+    }
     on_boundary = std::vector<bool>(tri_out.numberofpoints, false);
     num_boundary_points = 0;
     for (int i = 0; i < on_boundary.size(); i++) {

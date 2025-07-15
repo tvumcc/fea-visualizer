@@ -13,14 +13,14 @@ void AdvectionDiffusionSolver::assemble() {
 }
 
 void AdvectionDiffusionSolver::assemble_advection_matrix() {
-    int num_elements = surface->triangles.size() / 3;
+    int num_elements = surface->triangles.size();
     int num_nodes = surface->num_unknown_nodes(); // For Dirichlet BCs
 
     std::vector<Eigen::Triplet<float>> matrix_entries;
     for (int k = 0; k < num_elements; k++) {
-        glm::vec3 a = surface->vertices[surface->triangles[k * 3 + 0]];
-        glm::vec3 b = surface->vertices[surface->triangles[k * 3 + 1]];
-        glm::vec3 c = surface->vertices[surface->triangles[k * 3 + 2]];
+        glm::vec3 a = surface->vertices[surface->triangles[k][0]];
+        glm::vec3 b = surface->vertices[surface->triangles[k][1]];
+        glm::vec3 c = surface->vertices[surface->triangles[k][2]];
         glm::vec3 normal = glm::normalize(glm::cross(b - a, c - a));
         float jacobian_determinant = Eigen::Vector3<float>(b.x - a.x, b.y - a.y, b.z - a.z).cross(Eigen::Vector3<float>(c.x - a.x, c.y - a.y, c.z - a.z)).norm();
 
@@ -47,10 +47,10 @@ void AdvectionDiffusionSolver::assemble_advection_matrix() {
 
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                if (!surface->on_boundary[surface->triangles[k * 3 + i]] && !surface->on_boundary[surface->triangles[k * 3 + j]]) {
+                if (!surface->on_boundary[surface->triangles[k][i]] && !surface->on_boundary[surface->triangles[k][j]]) {
                     matrix_entries.push_back(Eigen::Triplet<float>(
-                        idx_map[surface->triangles[k * 3 + i]],
-                        idx_map[surface->triangles[k * 3 + j]], 
+                        idx_map[surface->triangles[k][i]],
+                        idx_map[surface->triangles[k][j]], 
                         (jacobian_determinant / 6.0f) * transformed_velocity.dot(physical_gradients[j])
                     ));
                 }
