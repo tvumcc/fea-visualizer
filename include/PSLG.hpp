@@ -38,6 +38,7 @@ public:
     void clear();
     void clear_holes();
     bool closed();
+    bool empty();
 private:
     unsigned int vertex_buffer, element_buffer, vertex_array; 
     void load_buffers();

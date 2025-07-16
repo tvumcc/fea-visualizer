@@ -156,36 +156,6 @@ void Surface::draw(bool wireframe) {
 }
 
 /**
- * Set the value of some region on the surface given a world ray and origin.
- * Right now, this sets the value of the closest vertex to the intersection point. 
- * Note that the ray must intersect the surface in order for a value to be set. 
- * 
- * @param world_ray The normalized direction vector of the ray derived from mouse picking.
- * @param origin The origin of the world ray.
- * @param value The value to set each of the nodal values to. 
- */
-void Surface::brush(glm::vec3 world_ray, glm::vec3 origin, float value, BVH& bvh) {
-    RayTriangleIntersection intersection = bvh.ray_triangle_intersection(origin, world_ray);
-
-    if (intersection.tri_idx != -1) {
-        int point_idx = -1;
-        float min_point_dist = 0.0f;
-        for (int i = 0; i < 3; i++) {
-            float dist = glm::distance(vertices[triangles[intersection.tri_idx][i]], intersection.point);
-            if ((point_idx == -1 || dist < min_point_dist) && dist > 0.0f) {
-                min_point_dist = dist;
-                point_idx = i;
-            }
-        }
-        
-        if (point_idx != -1) {
-            values[triangles[intersection.tri_idx][point_idx]] = value;
-        }
-    }
-}
-
-
-/**
  * Resets this surface by clearing all of the data associated with it.
  */
 void Surface::clear() {
@@ -193,6 +163,7 @@ void Surface::clear() {
     triangles.clear();
     on_boundary.clear();
     values.clear();
+    initialized = false;
     load_buffers();
 }
 

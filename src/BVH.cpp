@@ -6,34 +6,25 @@
 #include <format>
 
 BVH::BVH(std::shared_ptr<Surface> surface, int max_depth) :
-    bvh(BVHNode(surface, 0)), surface(surface), max_depth(max_depth)
+    root(BVHNode(surface, 0)), surface(surface), max_depth(max_depth)
 {
     for (int i = 0; i < surface->triangles.size(); i++)
-        bvh.triangle_indices.push_back(i);
-    bvh.update_bounds();
-    bvh.leaf = true;
-    bvh.divide(1, max_depth);
-}
-
-int get_leaves(BVHNode& node) {
-    if (node.leaf) {
-        return 1;
-    } else {
-        int out = 0;
-        out += get_leaves(*node.child_a);
-        out += get_leaves(*node.child_a);
-        return out;
-    }
+        root.triangle_indices.push_back(i);
+    root.update_bounds();
+    root.leaf = true;
+    root.divide(1, max_depth);
 }
 
 /**
  * Computes ray-triangle intersection with the mesh by first using BVH optimization and ray-AABB intersection.
+ * 
+ * @param origin The starting point of the ray.
+ * @param direction The direction of the ray.
  */
 RayTriangleIntersection BVH::ray_triangle_intersection(glm::vec3 origin, glm::vec3 direction) {
     std::vector<RayTriangleIntersection> intersections;
-    ray_triangle_intersection(origin, direction, bvh, intersections);
+    ray_triangle_intersection(origin, direction, root, intersections);
 
-    std::cout << std::format("# of leaves {}\n", get_leaves(bvh));
     RayTriangleIntersection out;
     for (RayTriangleIntersection intersection : intersections) {
         if (intersection.tri_idx != -1 && (out.tri_idx == -1 || intersection.distance < out.distance)) {
@@ -43,6 +34,16 @@ RayTriangleIntersection BVH::ray_triangle_intersection(glm::vec3 origin, glm::ve
     return out;
 }
 
+/**
+ * Helper method for the public ray_triangle_intersection method that recursively
+ * traverses the child BVHNodes and then computes ray-triangle intersections on all
+ * of the leaves while adding the triangle intersections to a vector.
+ * 
+ * @param origin The starting point of the ray.
+ * @param direction The direction of the ray.
+ * @param node The BVHNode that is currently being processed.
+ * @param intersections A dynamic array of the most successful ray-triangle intersections in each BVHNode leaf that is processed.
+ */
 void BVH::ray_triangle_intersection(glm::vec3 origin, glm::vec3 direction, BVHNode& node, std::vector<RayTriangleIntersection>& intersections) {
     RayTriangleIntersection intersection = {glm::vec3(0.0f, 0.0f, 0.0f), std::numeric_limits<float>::max(), -1};
     
@@ -56,33 +57,19 @@ void BVH::ray_triangle_intersection(glm::vec3 origin, glm::vec3 direction, BVHNo
     }
 }
 
-int BVH::get_closest_vertex_intersection() {
-    return -1;
-}
-
-void BVH::draw(int max_depth) {
-    shader->bind();
-    shader->set_mat4x4("model", glm::mat4(1.0f));
-    shader->set_vec3("object_color", glm::vec3(0.0f, 1.0f, 1.0f));
-    draw(std::min(this->max_depth, max_depth), 0, bvh);
-}
-
-void BVH::draw(int max_depth, int depth, BVHNode& node) {
-    if (depth >= max_depth) {
-        node.draw();
-    } else {
-        draw(max_depth, depth+1, *node.child_a);
-        draw(max_depth, depth+1, *node.child_b);
-    }
-}
-
 BVHNode::BVHNode(std::shared_ptr<Surface> surface, int depth) :
     surface(surface), depth(depth)
 {
     leaf = true;
 }
 
+/**
+ * Splits this BVHNode into two child nodes along its longest axis.
+ * All of the triangle indices are removed from this node and transfered to its children. 
+ */
 void BVHNode::split() {
+    if (degenerate) return;
+
     int largest_axis = 0;
     float largest_dimension = 0.0f;
     for (int i = 0; i < 3; i++) {
@@ -118,14 +105,23 @@ void BVHNode::split() {
     child_b->update_bounds();
 }
 
+/**
+ * Recursively divides this BVHNode towards a specified maximum depth.
+ * 
+ * @param depth The current depth that is being processed.
+ * @param max_depth The maximum depth at which the recursion will halt.
+ */
 void BVHNode::divide(int depth, int max_depth) {
     if (depth == max_depth) return;
 
     split();
-    child_a->divide(depth+1, max_depth); 
-    child_b->divide(depth+1, max_depth);
+    if (!child_a->degenerate) child_a->divide(depth+1, max_depth); 
+    if (!child_b->degenerate) child_b->divide(depth+1, max_depth);
 }
 
+/**
+ * Updates the bounds of this BVHNode to encompass all of its triangles' vertices.
+ */
 void BVHNode::update_bounds() {
     float min_x, min_y, min_z;
     float max_x, max_y, max_z;
@@ -146,19 +142,20 @@ void BVHNode::update_bounds() {
 
     if (triangle_indices.size() == 0) {
         point_a = point_b = glm::vec3(0.0f, 0.0f, 0.0f);
+        degenerate = true;
     } else {
         point_a = glm::vec3(min_x, min_y, min_z);
         point_b = glm::vec3(max_x, max_y, max_z);
-        load_buffers();
+        degenerate = false;
     }
-
-
-    std::cout << std::format("Depth {}: a = ({}, {}, {}), b = ({}, {}, {})\n", depth, point_a.x, point_a.y, point_a.z, point_b.x, point_b.y, point_b.z);
 }
 
 /**
- * Returns whether or not the ray intersects the AABB represented by this BVHNode
+ * Computes and returns the intersection of a ray and an AABB.
  * See https://tavianator.com/2011/ray_box.html for the Slab Method implementation.
+ * 
+ * @param origin The starting point of the ray.
+ * @param direction The direction of the ray.
  */
 RayAABBIntersection BVHNode::ray_aabb_intersection(glm::vec3 origin, glm::vec3 direction) {
     float t_min = std::numeric_limits<float>::min();
@@ -175,6 +172,12 @@ RayAABBIntersection BVHNode::ray_aabb_intersection(glm::vec3 origin, glm::vec3 d
     return {t_min, t_max};
 }
 
+/**
+ * Computes and returns the intersection of a ray and a triangle.
+ * 
+ * @param origin The starting point of the ray.
+ * @param direction The direction of the ray.
+ */
 RayTriangleIntersection BVHNode::ray_triangle_intersection(glm::vec3 origin, glm::vec3 direction) {
     RayTriangleIntersection intersection;
 
@@ -212,44 +215,4 @@ RayTriangleIntersection BVHNode::ray_triangle_intersection(glm::vec3 origin, glm
     }
 
     return intersection;
-}
-
-void BVHNode::draw() {
-    glBindVertexArray(vertex_array);
-    glDrawArrays(GL_LINES, 0, 24);
-}
-
-void BVHNode::load_buffers() {
-    glGenVertexArrays(1, &vertex_array);
-    glBindVertexArray(vertex_array);
-
-    glm::vec3 dim = point_b - point_a;
-    glm::vec3 dx = glm::vec3(dim.x, 0.0f, 0.0f);
-    glm::vec3 dy = glm::vec3(0.0f, dim.y, 0.0f);
-    glm::vec3 dz = glm::vec3(0.0f, 0.0f, dim.z);
-
-    std::vector<glm::vec3> vertices = {
-        point_a, point_a + dx,
-        point_a, point_a + dy,
-        point_a, point_a + dz,
-
-        point_b, point_b - dx,
-        point_b, point_b - dy,
-        point_b, point_b - dz,
-
-        point_a + dz, point_a + dz + dx,
-        point_a + dz, point_a + dz + dy,
-        point_a + dz + dy, point_a + dy,
-
-        point_b - dz, point_b - dz - dx,
-        point_b - dz, point_b - dz - dy,
-        point_b - dz - dy, point_b - dy,
-    };
-
-    glGenBuffers(1, &vertex_buffer);
-    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(0);
 }

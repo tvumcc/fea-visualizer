@@ -26,6 +26,10 @@ Application::~Application() {
 	glfwTerminate();
 }
 
+/**
+ * Load resources that are shared between multiple classes in the 
+ * program such as Shaders, Meshes, and ColorMaps.
+ */
 void Application::load_resources() {
     // Meshes
     meshes.add("sphere", std::make_shared<Mesh>("assets/sphere.obj"));
@@ -52,6 +56,10 @@ void Application::load_resources() {
     ));
 }
 
+/**
+ * This function is called before the main loop and is primarily used to
+ * initialize pointers to shared resources.
+ */
 void Application::load() {
     camera = std::make_shared<Camera>(); 
     framebuffer_size_callback(window, window_width, window_height);
@@ -73,6 +81,9 @@ void Application::load() {
     solver = std::make_shared<AdvectionDiffusionSolver>();
 }
 
+/**
+ * Renders to the window everything that needs to be drawn.
+ */
 void Application::render() {
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -87,8 +98,79 @@ void Application::render() {
     pslg->draw();
     surface->draw(settings.draw_surface_wireframe);
     grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
-    if (bvh) bvh->draw(bvh->max_depth-1);
 }
+
+/**
+ * Renders the GUI elements with ImGUI.
+ */
+void Application::render_gui() {
+    const ImGuiViewport *main_viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y));
+	ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
+    ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+
+    ImGui::SeparatorText("Camera");
+    if (ImGui::Button("Reset Orbit Position")) reset_orbit_position();
+    if (ImGui::Button("Align Top Down"))       align_top_down();
+
+    ImGui::SeparatorText("Surface");
+    if (ImGui::Button("Draw PSLG"))            switch_mode_draw_pslg();
+    if (!pslg->empty()) {
+        ImGui::Indent();
+        if (ImGui::Button("Clear PSLG"))           clear_pslg();
+        if (pslg->closed()) {
+            if (ImGui::Button("Add Hole"))         switch_mode_add_hole();
+            if (!pslg->holes.empty())
+                if (ImGui::Button("Clear Holes"))  clear_holes();
+            if (ImGui::Button("Init from PSLG"))   init_surface_from_pslg();
+        }
+        ImGui::Unindent();
+    }
+    if (surface->initialized)
+        if (ImGui::Button("Clear Surface")) clear_surface();
+    if (ImGui::Button("Enable Brush"))  switch_mode_brush();
+    if (ImGui::Button("Init from .obj"))   init_surface_from_obj();
+    ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
+
+    switch (settings.interact_mode) {
+        case InteractMode::Idle: {
+            ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
+            ImGui::Begin("Mode: Idle", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Text("These controls also work in other modes.");
+            ImGui::Bullet(); ImGui::Text("<RMB> and drag to rotate the camera.");
+            ImGui::Bullet(); ImGui::Text("<Shift-LMB> and drag to pan.");
+            ImGui::Bullet(); ImGui::Text("<Scroll> to zoom in and out.");
+            ImGui::Bullet(); ImGui::Text("<E> to toggle the GUI.");
+            ImGui::End();
+        } break;
+        case InteractMode::DrawPSLG: {
+            ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
+            ImGui::Begin("Mode: PSLG Drawing", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Bullet(); ImGui::Text("<LMB> points in sequence to draw connected line segments.");
+            ImGui::Bullet(); ImGui::Text("<Ctrl-Enter> to finalize a contiguous section of the drawing.");
+            ImGui::Bullet(); ImGui::Text("<Enter> to finalize the entire drawing.");
+            ImGui::End();
+        } break;
+        case InteractMode::AddHole: {
+            ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
+            ImGui::Begin("Mode: Add Hole", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Text("<LMB> in a closed region to designate it as a hole.");
+            ImGui::End();
+        } break;
+        case InteractMode::Brush: {
+            ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
+            ImGui::Begin("Mode: Brush", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Text("<LMB> on elements to set the values of their nodes.");
+            ImGui::End();
+        } break;
+    }
+
+    ImGui::End();
+}
+
+/**
+ * The program's main loop.
+ */
 void Application::run() {
     while (!glfwWindowShouldClose(window)) {
 		ImGui_ImplOpenGL3_NewFrame();
@@ -105,6 +187,8 @@ void Application::run() {
             pslg->set_pending_point(get_mouse_to_grid_plane_point());
         if (ImGui::GetIO().WantCaptureMouse)
             pslg->pending_point.reset();
+        if (solver->surface)
+            solver->advance_time();
 
         render();
 
@@ -116,100 +200,112 @@ void Application::run() {
     }
 }
 
-void Application::render_gui() {
-    const ImGuiViewport *main_viewport = ImGui::GetMainViewport();
-	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y));
-	ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
-    ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+void Application::reset_orbit_position() {
+    camera->set_orbit_position(glm::vec3(0.0f));
+}
+void Application::align_top_down() {
+    camera->align_to_plane();
+}
+void Application::clear_pslg() {
+    pslg->clear();
+}
+void Application::clear_holes() {
+    pslg->clear_holes();
+}
+void Application::clear_surface() {
+    surface->clear();
+    solver->surface = nullptr;
+    bvh = nullptr;
+}
+void Application::init_surface_from_pslg() {
+    clear_pslg();
+    clear_surface(); 
 
-    if (ImGui::Button("Align Top Down"))
-        camera->align_to_plane();
-    if (ImGui::Button("Draw PSLG")) {
-        camera->align_to_plane();
-        settings.interact_mode = InteractMode::DrawPSLG;
-    }
-    if (ImGui::Button("Clear PSLG")) {
-        pslg->clear();
-    }
-    if (pslg->closed()) {
-        if (ImGui::Button("Add Hole")) {
-            settings.interact_mode = InteractMode::AddHole;
+    surface->init_from_PSLG(*pslg);
+    solver->surface = surface;
+    solver->init();
+    bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+}
+void Application::init_surface_from_obj() {
+    clear_pslg();
+    clear_surface(); 
+
+    nfdchar_t *out_path = NULL;		
+    nfdresult_t result = NFD_OpenDialog(NULL, NULL, &out_path);
+    surface->init_from_obj(out_path);
+    solver->surface = surface;
+    solver->init();
+    bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+}
+
+void Application::switch_mode_draw_pslg() {
+    camera->align_to_plane();
+    settings.interact_mode = InteractMode::DrawPSLG;
+}
+void Application::switch_mode_add_hole() {
+    settings.interact_mode = InteractMode::AddHole;
+}
+void Application::switch_mode_brush() {
+    settings.interact_mode = InteractMode::Brush;
+}
+
+/**
+ * Set the value of some region on the surface given a world ray and origin.
+ * Right now, this sets the value of the closest vertex to the intersection point. 
+ * Note that the ray must intersect the surface in order for a value to be set. 
+ * 
+ * @param world_ray The normalized direction vector of the ray derived from mouse picking.
+ * @param origin The origin of the world ray.
+ * @param value The value to set each of the nodal values to. 
+ */
+void Application::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
+    RayTriangleIntersection intersection = bvh->ray_triangle_intersection(origin, world_ray);
+
+    if (intersection.tri_idx != -1) {
+        int point_idx = -1;
+        float min_point_dist = 0.0f;
+        for (int i = 0; i < 3; i++) {
+            float dist = glm::distance(surface->vertices[surface->triangles[intersection.tri_idx][i]], intersection.point);
+            if ((point_idx == -1 || dist < min_point_dist) && dist > 0.0f) {
+                min_point_dist = dist;
+                point_idx = i;
+            }
         }
-        if (ImGui::Button("Triangulate PSLG")) {
-            surface->init_from_PSLG(*pslg);
-            bvh = std::make_unique<BVH>(surface, 10);
-            bvh->shader = shaders.get("solid_color");
+        
+        if (point_idx != -1) {
+            surface->values[surface->triangles[intersection.tri_idx][point_idx]] = value;
         }
     }
-    if (ImGui::Button("Clear Surface")) {
-        surface->clear();
-        solver->surface = nullptr;
-        bvh = nullptr;
-    }
-    if (!pslg->holes.empty()) {
-        if (ImGui::Button("Clear Holes")) {
-            pslg->clear_holes();
-        }
-    }
-    if (ImGui::Button("Enable Brush")) {
-        settings.interact_mode = InteractMode::Brush;
-    }
-    if (ImGui::Button("Init Solver")) {
-        solver->surface = surface;
-        solver->init();
-    }
-    // if (ImGui::Button("Time Step")) {
-    if (solver->surface)
-        solver->advance_time();
-    // }
-    if (ImGui::Button("Import .obj")) {
-        nfdchar_t *out_path = NULL;		
-        nfdresult_t result = NFD_OpenDialog(NULL, NULL, &out_path);
-        surface->init_from_obj(out_path);
-        bvh = std::make_unique<BVH>(surface, 8);
-        bvh->shader = shaders.get("solid_color");
-    }
-    ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
+}
 
-    if (ImGui::BeginPopupModal("PSLG Incomplete", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-        ImGui::Text("PSLG must be complete and closed to triangulate.");
-        if (ImGui::Button("Close"))
-            ImGui::CloseCurrentPopup();
-        ImGui::EndPopup();
-    }
+/**
+ * Returns the direction of the ray in 3D space that is created by the mouse.
+ */
+glm::vec3 Application::get_world_ray_from_mouse() {
+    double x_pos, y_pos;
+    glfwGetCursorPos(window, &x_pos, &y_pos);
+    if (gui_visible) x_pos -= gui_width;
 
-    ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
-    switch (settings.interact_mode) {
-        case InteractMode::Idle: {
-            ImGui::Begin("Mode: Idle", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-            ImGui::Text("These controls also work in other modes.");
-            ImGui::Bullet(); ImGui::Text("<RMB> and drag to rotate the camera.");
-            ImGui::Bullet(); ImGui::Text("<Shift-LMB> and drag to pan.");
-            ImGui::Bullet(); ImGui::Text("<Scroll> to zoom in and out.");
-            ImGui::Bullet(); ImGui::Text("<O> to reset pan to the origin.");
-            ImGui::Bullet(); ImGui::Text("<E> to toggle the GUI.");
-            ImGui::End();
-        } break;
-        case InteractMode::DrawPSLG: {
-            ImGui::Begin("Mode: PSLG Drawing", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-            ImGui::Bullet(); ImGui::Text("<LMB> points in sequence to draw connected line segments.");
-            ImGui::Bullet(); ImGui::Text("<Ctrl-Enter> to finalize a contiguous section of the drawing.");
-            ImGui::Bullet(); ImGui::Text("<Enter> to finalize the entire drawing.");
-            ImGui::End();
-        } break;
-        case InteractMode::AddHole: {
-            ImGui::Begin("Mode: Add Hole", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-            ImGui::Text("<LMB> in a closed region to designate it as a hole.");
-            ImGui::End();
-        } break;
-        case InteractMode::Brush: {
-            ImGui::Begin("Mode: Brush", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-            ImGui::Text("<LMB> on elements to set the values of their nodes.");
-            ImGui::End();
-        } break;
-    }
+    glm::vec3 nds_ray = glm::vec3((2.0f * x_pos) / (window_width - (gui_visible ? gui_width : 0)) - 1.0f, 1.0f - (2.0f * y_pos) / window_height, 1.0f);
+    glm::vec4 clip_ray = glm::vec4(nds_ray.x, nds_ray.y, -1.0f, 1.0f);
+    glm::vec4 eye_ray = glm::inverse(camera->get_projection_matrix()) * clip_ray;
+    eye_ray = glm::vec4(eye_ray.x, eye_ray.y, -1.0, 0.0f);
+    glm::vec3 world_ray = glm::normalize(glm::vec3(glm::inverse(camera->get_view_matrix()) * eye_ray));
 
-    ImGui::End();
+    return world_ray;
+}
+
+/**
+ * Returns the intersection of the ray created by the mouse and the XZ plane.
+ */
+glm::vec3 Application::get_mouse_to_grid_plane_point() {
+    glm::vec3 world_ray = get_world_ray_from_mouse();
+    glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 origin = camera->get_camera_position();
+
+    float parameter = -glm::dot(normal, origin) / glm::dot(normal, world_ray);
+    glm::vec3 intersection = origin + world_ray * parameter;
+    return intersection;
 }
 
 void Application::init_opengl_window(unsigned int window_width, unsigned int window_height) {
@@ -244,30 +340,6 @@ void Application::init_imgui(const char* font_path, int font_size) {
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 460");
-}
-
-glm::vec3 Application::get_world_ray_from_mouse() {
-    double x_pos, y_pos;
-    glfwGetCursorPos(window, &x_pos, &y_pos);
-    if (gui_visible) x_pos -= gui_width;
-
-    glm::vec3 nds_ray = glm::vec3((2.0f * x_pos) / (window_width - (gui_visible ? gui_width : 0)) - 1.0f, 1.0f - (2.0f * y_pos) / window_height, 1.0f);
-    glm::vec4 clip_ray = glm::vec4(nds_ray.x, nds_ray.y, -1.0f, 1.0f);
-    glm::vec4 eye_ray = glm::inverse(camera->get_projection_matrix()) * clip_ray;
-    eye_ray = glm::vec4(eye_ray.x, eye_ray.y, -1.0, 0.0f);
-    glm::vec3 world_ray = glm::normalize(glm::vec3(glm::inverse(camera->get_view_matrix()) * eye_ray));
-
-    return world_ray;
-}
-
-glm::vec3 Application::get_mouse_to_grid_plane_point() {
-    glm::vec3 world_ray = get_world_ray_from_mouse();
-    glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::vec3 origin = camera->get_camera_position();
-
-    float parameter = -glm::dot(normal, origin) / glm::dot(normal, world_ray);
-    glm::vec3 intersection = origin + world_ray * parameter;
-    return intersection;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -315,7 +387,7 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
     switch (app->settings.interact_mode) {
         case InteractMode::Brush: {
             if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)) {
-                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f, *app->bvh);
+                app->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f);
             }
         } break;
 
@@ -338,10 +410,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         framebuffer_size_callback(window, app->window_width, app->window_height);
 		glfwSetInputMode(window, GLFW_CURSOR, app->gui_visible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 	}
-	if (key == GLFW_KEY_O && action == GLFW_PRESS) {
-        app->camera->set_orbit_position(glm::vec3(0.0f));
-	}
-
     
     switch (app->settings.interact_mode) {
         case InteractMode::DrawPSLG: {
@@ -379,7 +447,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         } break;
         case InteractMode::Brush: {
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
-                app->surface->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f, *app->bvh);
+                app->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f);
             }
         } break;
     }

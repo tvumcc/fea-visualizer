@@ -154,3 +154,10 @@ void PSLG::clear_holes() {
 bool PSLG::closed() {
     return section_start_idx == vertices.size() && vertices.size() >= 3;
 }
+
+/**
+ * Returns false if the PSLG has any vertices stored and true otherwise.
+ */
+bool PSLG::empty() {
+    return vertices.empty();
+}

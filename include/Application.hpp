@@ -25,6 +25,7 @@ enum class InteractMode {
 struct Settings {
     InteractMode interact_mode = InteractMode::Idle;
     bool draw_surface_wireframe = true;
+    int bvh_depth = 10;
 };
 
 class Application {
@@ -51,9 +52,22 @@ public:
     void load();
     void load_resources();
     void render();
+    void render_gui();
     void run();
 
-    void render_gui();
+    void reset_orbit_position();
+    void align_top_down();
+    void clear_pslg();
+    void clear_holes();
+    void clear_surface();
+    void init_surface_from_pslg();
+    void init_surface_from_obj();
+
+    void switch_mode_draw_pslg();
+    void switch_mode_add_hole();
+    void switch_mode_brush();
+
+    void brush(glm::vec3 world_ray, glm::vec3 origin, float value);
     glm::vec3 get_world_ray_from_mouse();
     glm::vec3 get_mouse_to_grid_plane_point();
 private:

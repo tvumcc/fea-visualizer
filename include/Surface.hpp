@@ -10,9 +10,6 @@
 #include <array>
 #include <memory>
 
-struct RayTriangleIntersection;
-class BVH;
-
 struct Triangle {
     unsigned int idx_a;
     unsigned int idx_b;
@@ -53,7 +50,6 @@ public:
 
     void draw(bool wireframe);
     void clear();
-    void brush(glm::vec3 world_ray, glm::vec3 origin, float value, BVH& bvh);
 
     int num_unknown_nodes();
 private:
