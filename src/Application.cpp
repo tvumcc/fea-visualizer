@@ -41,8 +41,8 @@ void Application::load_resources() {
     shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
     shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
 
-    // Color Maps
-    color_maps.add("viridis", std::make_shared<ColorMap>(
+    // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same.
+    color_maps.add("Viridis", std::make_shared<ColorMap>(
         "Viridis",
         std::array<glm::vec3, 7>({
             glm::vec3(0.274344,0.004462,0.331359),
@@ -54,6 +54,31 @@ void Application::load_resources() {
             glm::vec3(-5.513165,4.709245,26.582180),
         })
     ));
+    color_maps.add("Plasma", std::make_shared<ColorMap>(
+        "Plasma",
+        std::array<glm::vec3, 7>({
+            glm::vec3(0.05873234392399702, 0.02333670892565664, 0.5433401826748754),
+            glm::vec3(2.176514634195958, 0.2383834171260182, 0.7539604599784036),
+            glm::vec3(-2.689460476458034, -7.455851135738909, 3.110799939717086),
+            glm::vec3(6.130348345893603, 42.3461881477227, -28.51885465332158),
+            glm::vec3(-11.10743619062271, -82.66631109428045, 60.13984767418263),
+            glm::vec3(10.02306557647065, 71.41361770095349, -54.07218655560067),
+            glm::vec3(-3.658713842777788, -22.93153465461149, 18.19190778539828),
+        })
+    ));
+    color_maps.add("Spectral_r", std::make_shared<ColorMap>(
+        "Spectral_r",
+        std::array<glm::vec3, 7>({
+            glm::vec3(0.426208,0.275203,0.563277),
+            glm::vec3(-5.321958,3.761848,5.477444),
+            glm::vec3(42.422339,-15.057685,-57.232349),
+            glm::vec3(-100.917716,57.029463,232.590601),
+            glm::vec3(106.422535,-116.177338,-437.123306),
+            glm::vec3(-48.460514,103.570154,378.807920),
+            glm::vec3(6.016269,-33.393152,-122.850806),
+        })
+    ));
+    settings.init_color_maps(color_maps);
 }
 
 /**
@@ -76,9 +101,9 @@ void Application::load() {
     surface->wireframe_shader = shaders.get("wireframe");
     surface->fem_mesh_shader = shaders.get("fem_mesh");
     surface->sphere_mesh = meshes.get("sphere");
-    surface->color_map = color_maps.get("viridis");
 
-    solver = std::make_shared<AdvectionDiffusionSolver>();
+    switch_solver((SolverType)settings.selected_solver);
+    switch_color_map(settings.color_maps[settings.selected_color_map]);
 }
 
 /**
@@ -109,28 +134,77 @@ void Application::render_gui() {
 	ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
     ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
 
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.FrameRounding = 6;
+    style.WindowRounding = 6;
+    style.FrameBorderSize = 1;
+
+    ImVec4 *colors = style.Colors;
+    colors[ImGuiCol_FrameBg] = ImVec4(0.16f, 0.17f, 0.48f, 0.54f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.16f, 0.17f, 0.48f, 0.54f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.16f, 0.17f, 0.48f, 0.54f);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.46f, 0.26f, 0.98f, 0.40f);
+    colors[ImGuiCol_CheckMark] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+    colors[ImGuiCol_SliderGrab] = ImVec4(0.46f, 0.26f, 0.98f, 0.40f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.34f, 0.26f, 0.98f, 0.40f);
+    colors[ImGuiCol_Button] = ImVec4(0.46f, 0.26f, 0.98f, 0.40f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.60f, 0.26f, 0.98f, 0.40f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.34f, 0.26f, 0.98f, 0.40f);
+    colors[ImGuiCol_Header] = ImVec4(0.46f, 0.26f, 0.98f, 0.40f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.60f, 0.26f, 0.98f, 0.40f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.34f, 0.26f, 0.98f, 0.40f);
+
     ImGui::SeparatorText("Camera");
     if (ImGui::Button("Reset Orbit Position")) reset_orbit_position();
     if (ImGui::Button("Align Top Down"))       align_top_down();
 
     ImGui::SeparatorText("Surface");
-    if (ImGui::Button("Draw PSLG"))            switch_mode_draw_pslg();
-    if (!pslg->empty()) {
-        ImGui::Indent();
-        if (ImGui::Button("Clear PSLG"))           clear_pslg();
-        if (pslg->closed()) {
-            if (ImGui::Button("Add Hole"))         switch_mode_add_hole();
-            if (!pslg->holes.empty())
-                if (ImGui::Button("Clear Holes"))  clear_holes();
-            if (ImGui::Button("Init from PSLG"))   init_surface_from_pslg();
+    if (!surface->initialized) {
+        if (ImGui::Button("Draw PSLG"))            switch_mode_draw_pslg();
+        if (!pslg->empty()) {
+            ImGui::Indent();
+            if (ImGui::Button("Clear PSLG"))           clear_pslg();
+            if (pslg->closed()) {
+                if (ImGui::Button("Add Hole"))         switch_mode_add_hole();
+                if (!pslg->holes.empty())
+                    if (ImGui::Button("Clear Holes"))  clear_holes();
+                if (ImGui::Button("Init from PSLG"))   init_surface_from_pslg();
+            }
+            ImGui::Unindent();
         }
-        ImGui::Unindent();
+        if (ImGui::Button("Init from .obj"))   init_surface_from_obj();
+    } else {
+        ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
+        if (ImGui::BeginCombo("Solver", settings.solvers[settings.selected_solver], ImGuiComboFlags_WidthFitPreview)) {
+            for (int i = 0; i < settings.solvers.size(); i++) {
+                const bool is_selected = (settings.selected_solver == i);
+                if (ImGui::Selectable(settings.solvers[i], is_selected)) {
+                    settings.selected_solver = i;
+                    switch_solver((SolverType)i);
+                }
+
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::BeginCombo("Color Map", settings.color_maps[settings.selected_color_map], ImGuiComboFlags_WidthFitPreview)) {
+            for (int i = 0; i < settings.color_maps.size(); i++) {
+                const bool is_selected = (settings.selected_color_map == i);
+                if (ImGui::Selectable(settings.color_maps[i], is_selected)) {
+                    settings.selected_color_map = i;
+                    switch_color_map(settings.color_maps[i]);
+                }
+
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::Button("Delete Surface")) delete_surface();
+        if (ImGui::Button("Clear Surface"))  clear_surface();
+        if (ImGui::Button("Enable Brush"))   switch_mode_brush();
     }
-    if (surface->initialized)
-        if (ImGui::Button("Clear Surface")) clear_surface();
-    if (ImGui::Button("Enable Brush"))  switch_mode_brush();
-    if (ImGui::Button("Init from .obj"))   init_surface_from_obj();
-    ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
 
     switch (settings.interact_mode) {
         case InteractMode::Idle: {
@@ -213,18 +287,22 @@ void Application::clear_holes() {
     pslg->clear_holes();
 }
 void Application::clear_surface() {
+    surface->clear_values();
+}
+void Application::delete_surface() {
     surface->clear();
     solver->surface = nullptr;
     bvh = nullptr;
 }
 void Application::init_surface_from_pslg() {
-    clear_pslg();
     clear_surface(); 
 
     surface->init_from_PSLG(*pslg);
     solver->surface = surface;
     solver->init();
     bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+
+    clear_pslg();
 }
 void Application::init_surface_from_obj() {
     clear_pslg();
@@ -236,6 +314,32 @@ void Application::init_surface_from_obj() {
     solver->surface = surface;
     solver->init();
     bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+}
+void Application::switch_solver(SolverType new_solver) {
+    bool valid_new_solver = false;
+
+    switch (new_solver) {
+        case SolverType::Heat: 
+            solver = std::make_shared<HeatSolver>();
+            valid_new_solver = true;
+            break;
+        case SolverType::Wave: 
+            solver = std::make_shared<WaveSolver>();
+            valid_new_solver = true;
+            break;
+        case SolverType::Advection_Diffusion: 
+            solver = std::make_shared<AdvectionDiffusionSolver>();
+            valid_new_solver = true;
+            break;
+    }
+
+    if (valid_new_solver && surface->initialized) {
+        solver->surface = surface;
+        solver->init();
+    }
+}
+void Application::switch_color_map(const char* new_color_map) {
+    surface->color_map = color_maps.get(new_color_map);
 }
 
 void Application::switch_mode_draw_pslg() {

@@ -22,10 +22,27 @@ enum class InteractMode {
     Brush,
 };
 
+enum class SolverType {
+    Heat = 0,
+    Wave,
+    Advection_Diffusion
+};
+
 struct Settings {
     InteractMode interact_mode = InteractMode::Idle;
     bool draw_surface_wireframe = true;
     int bvh_depth = 10;
+
+    std::vector<const char*> solvers = {"Heat", "Wave", "Advection-Diffusion"};
+    int selected_solver = (int)SolverType::Heat;
+    std::vector<const char*> color_maps;
+    int selected_color_map = 0;
+
+    void init_color_maps(ResourceManager<ColorMap> cmaps) {
+        cmaps.perform_action_on_all([this](ColorMap& cmap){
+            color_maps.push_back(cmap.name.c_str());
+        });
+    }
 };
 
 class Application {
@@ -60,8 +77,11 @@ public:
     void clear_pslg();
     void clear_holes();
     void clear_surface();
+    void delete_surface();
     void init_surface_from_pslg();
     void init_surface_from_obj();
+    void switch_solver(SolverType new_solver);
+    void switch_color_map(const char* new_color_map);
 
     void switch_mode_draw_pslg();
     void switch_mode_add_hole();

@@ -50,6 +50,7 @@ public:
 
     void draw(bool wireframe);
     void clear();
+    void clear_values();
 
     int num_unknown_nodes();
 private:

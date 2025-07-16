@@ -168,6 +168,13 @@ void Surface::clear() {
 }
 
 /**
+ * Resets this surface by only setting all of the nodal values to 0.
+ */
+void Surface::clear_values() {
+    values = std::vector<float>(vertices.size(), 0.0f);
+}
+
+/**
  * Returns the total number of vertices minus the number of vertices lying on the boundary of the domain.
  */
 int Surface::num_unknown_nodes() {
