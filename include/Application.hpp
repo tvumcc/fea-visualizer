@@ -1,6 +1,8 @@
 #pragma once
+#include <imgui/imgui.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <stb/stb_image.h>
 
 #include "Mesh.hpp"
 #include "Shader.hpp"
@@ -30,9 +32,13 @@ enum class SolverType {
 
 struct Settings {
     InteractMode interact_mode = InteractMode::Idle;
+    bool draw_grid_interface = true;
     bool draw_surface_wireframe = true;
+    bool extrude_nodes = true;
     int bvh_depth = 10;
 
+    std::vector<std::pair<GLuint, ImVec2>> strong_form_equations;
+    std::vector<GLuint> weak_form_equations; 
     std::vector<const char*> solvers = {"Heat", "Wave", "Advection-Diffusion"};
     int selected_solver = (int)SolverType::Heat;
     std::vector<const char*> color_maps;
@@ -42,6 +48,22 @@ struct Settings {
         cmaps.perform_action_on_all([this](ColorMap& cmap){
             color_maps.push_back(cmap.name.c_str());
         });
+    }
+
+    void init_equations() {
+        for (int i = 0; i < solvers.size(); i++) {
+            GLuint texture;
+            int width, height, channels;
+            unsigned char *data = stbi_load(std::format("assets/{}_StrongForm_Equation.png", solvers[i]).c_str(), &width, &height, &channels, 0);
+            glGenTextures(1, &texture);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, channels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
+            glGenerateMipmap(GL_TEXTURE_2D);
+            stbi_image_free(data);
+            strong_form_equations.push_back({texture, ImVec2(width / 3, height / 3)});
+        }
     }
 };
 

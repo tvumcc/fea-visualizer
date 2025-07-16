@@ -79,6 +79,7 @@ void Application::load_resources() {
         })
     ));
     settings.init_color_maps(color_maps);
+    settings.init_equations();
 }
 
 /**
@@ -121,8 +122,14 @@ void Application::render() {
     });
 
     pslg->draw();
+
+    shaders.get("fem_mesh")->bind();
+    shaders.get("fem_mesh")->set_bool("extrude_nodes", settings.extrude_nodes);
+    shaders.get("wireframe")->bind();
+    shaders.get("wireframe")->set_bool("extrude_nodes", settings.extrude_nodes);
     surface->draw(settings.draw_surface_wireframe);
-    grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
+
+    if (settings.draw_grid_interface) grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
 }
 
 /**
@@ -157,6 +164,7 @@ void Application::render_gui() {
     ImGui::SeparatorText("Camera");
     if (ImGui::Button("Reset Orbit Position")) reset_orbit_position();
     if (ImGui::Button("Align Top Down"))       align_top_down();
+    ImGui::Checkbox("Draw Grid", &settings.draw_grid_interface);
 
     ImGui::SeparatorText("Surface");
     if (!surface->initialized) {
@@ -174,7 +182,11 @@ void Application::render_gui() {
         }
         if (ImGui::Button("Init from .obj"))   init_surface_from_obj();
     } else {
+        ImGui::Text(std::format("{} Equation:", settings.solvers[settings.selected_solver]).c_str());
+        ImGui::Image(settings.strong_form_equations[settings.selected_solver].first, settings.strong_form_equations[settings.selected_solver].second);
+        ImGui::Separator();
         ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
+        ImGui::Checkbox("Extrude Nodes", &settings.extrude_nodes);
         if (ImGui::BeginCombo("Solver", settings.solvers[settings.selected_solver], ImGuiComboFlags_WidthFitPreview)) {
             for (int i = 0; i < settings.solvers.size(); i++) {
                 const bool is_selected = (settings.selected_solver == i);

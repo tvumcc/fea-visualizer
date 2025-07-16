@@ -12,7 +12,7 @@ public:
     Eigen::VectorXf v;
     
     float c = 0.05f;
-    float time_step = 0.01f;
+    float time_step = 0.05f;
 
     void assemble() override;
     void advance_time() override;
