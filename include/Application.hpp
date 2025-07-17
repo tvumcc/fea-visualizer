@@ -35,14 +35,19 @@ struct Settings {
     bool draw_grid_interface = true;
     bool draw_surface_wireframe = true;
     bool extrude_nodes = true;
+    bool paused = false;
     int bvh_depth = 10;
+    float brush_strength = 1.0f;
 
-    std::vector<std::pair<GLuint, ImVec2>> strong_form_equations;
-    std::vector<GLuint> weak_form_equations; 
+    std::vector<std::pair<GLuint, ImVec2>> solver_equation_textures;
     std::vector<const char*> solvers = {"Heat", "Wave", "Advection-Diffusion"};
     int selected_solver = (int)SolverType::Heat;
+
+    std::vector<std::pair<GLuint, ImVec2>> color_map_icon_textures;
     std::vector<const char*> color_maps;
     int selected_color_map = 0;
+
+    std::string error_message = "";
 
     void init_color_maps(ResourceManager<ColorMap> cmaps) {
         cmaps.perform_action_on_all([this](ColorMap& cmap){
@@ -50,11 +55,11 @@ struct Settings {
         });
     }
 
-    void init_equations() {
+    void init_equation_textures() {
         for (int i = 0; i < solvers.size(); i++) {
             GLuint texture;
             int width, height, channels;
-            unsigned char *data = stbi_load(std::format("assets/{}_StrongForm_Equation.png", solvers[i]).c_str(), &width, &height, &channels, 0);
+            unsigned char *data = stbi_load(std::format("assets/{}_Equation.png", solvers[i]).c_str(), &width, &height, &channels, 0);
             glGenTextures(1, &texture);
             glBindTexture(GL_TEXTURE_2D, texture);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -62,7 +67,23 @@ struct Settings {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, channels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_2D);
             stbi_image_free(data);
-            strong_form_equations.push_back({texture, ImVec2(width / 3, height / 3)});
+            solver_equation_textures.push_back({texture, ImVec2(width / 3, height / 3)});
+        }
+    }
+
+    void init_color_map_icon_textures() {
+        for (int i = 0; i < color_maps.size(); i++) {
+            GLuint texture;
+            int width, height, channels;
+            unsigned char *data = stbi_load(std::format("assets/{}.png", color_maps[i]).c_str(), &width, &height, &channels, 0);
+            glGenTextures(1, &texture);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, channels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
+            glGenerateMipmap(GL_TEXTURE_2D);
+            stbi_image_free(data);
+            color_map_icon_textures.push_back({texture, ImVec2(width / 3, height / 3)});
         }
     }
 };
@@ -98,16 +119,13 @@ public:
     void align_top_down();
     void clear_pslg();
     void clear_holes();
-    void clear_surface();
+    void clear_solver();
     void delete_surface();
     void init_surface_from_pslg();
     void init_surface_from_obj();
     void switch_solver(SolverType new_solver);
     void switch_color_map(const char* new_color_map);
-
-    void switch_mode_draw_pslg();
-    void switch_mode_add_hole();
-    void switch_mode_brush();
+    void switch_mode(InteractMode mode);
 
     void brush(glm::vec3 world_ray, glm::vec3 origin, float value);
     glm::vec3 get_world_ray_from_mouse();

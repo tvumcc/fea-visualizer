@@ -10,6 +10,7 @@
 #include "AdvectionDiffusionSolver.hpp"
 
 #include <iostream>
+#include <filesystem>
 
 Application::Application() {
     init_opengl_window(window_width, window_height);
@@ -79,7 +80,8 @@ void Application::load_resources() {
         })
     ));
     settings.init_color_maps(color_maps);
-    settings.init_equations();
+    settings.init_equation_textures();
+    settings.init_color_map_icon_textures();
 }
 
 /**
@@ -103,8 +105,8 @@ void Application::load() {
     surface->fem_mesh_shader = shaders.get("fem_mesh");
     surface->sphere_mesh = meshes.get("sphere");
 
-    switch_solver((SolverType)settings.selected_solver);
-    switch_color_map(settings.color_maps[settings.selected_color_map]);
+    switch_solver(SolverType::Wave);
+    switch_color_map("Viridis");
 }
 
 /**
@@ -144,6 +146,7 @@ void Application::render_gui() {
     ImGuiStyle& style = ImGui::GetStyle();
     style.FrameRounding = 6;
     style.WindowRounding = 6;
+    style.PopupRounding = 6;
     style.FrameBorderSize = 1;
 
     ImVec4 *colors = style.Colors;
@@ -168,25 +171,59 @@ void Application::render_gui() {
 
     ImGui::SeparatorText("Surface");
     if (!surface->initialized) {
-        if (ImGui::Button("Draw PSLG"))            switch_mode_draw_pslg();
+        if (ImGui::Button("Draw PSLG")) switch_mode(InteractMode::DrawPSLG);
         if (!pslg->empty()) {
             ImGui::Indent();
-            if (ImGui::Button("Clear PSLG"))           clear_pslg();
+            if (ImGui::Button("Clear PSLG")) clear_pslg();
             if (pslg->closed()) {
-                if (ImGui::Button("Add Hole"))         switch_mode_add_hole();
+                if (ImGui::Button("Add Hole")) switch_mode(InteractMode::AddHole);
                 if (!pslg->holes.empty())
-                    if (ImGui::Button("Clear Holes"))  clear_holes();
-                if (ImGui::Button("Init from PSLG"))   init_surface_from_pslg();
+                    if (ImGui::Button("Clear Holes")) clear_holes();
+                if (ImGui::Button("Init from PSLG")) init_surface_from_pslg();
             }
             ImGui::Unindent();
         }
         if (ImGui::Button("Init from .obj"))   init_surface_from_obj();
     } else {
-        ImGui::Text(std::format("{} Equation:", settings.solvers[settings.selected_solver]).c_str());
-        ImGui::Image(settings.strong_form_equations[settings.selected_solver].first, settings.strong_form_equations[settings.selected_solver].second);
+        ImGui::Text(std::format("{} nodes", solver->surface->vertices.size()).c_str());
+        ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
         ImGui::Separator();
         ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
         ImGui::Checkbox("Extrude Nodes", &settings.extrude_nodes);
+        ImGui::Image(settings.color_map_icon_textures[settings.selected_color_map].first, 
+            ImVec2(settings.color_map_icon_textures[settings.selected_color_map].second.x * 1.5, settings.color_map_icon_textures[settings.selected_color_map].second.y * 1.5));
+        ImGui::SameLine();
+        if (ImGui::BeginCombo("Color Map", settings.color_maps[settings.selected_color_map], ImGuiComboFlags_WidthFitPreview)) {
+            for (int i = 0; i < settings.color_maps.size(); i++) {
+                ImGui::Image(settings.color_map_icon_textures[i].first, settings.color_map_icon_textures[i].second);
+                ImGui::SameLine();
+
+                const bool is_selected = (settings.selected_color_map == i);
+                if (ImGui::Selectable(settings.color_maps[i], is_selected)) {
+                    settings.selected_color_map = i;
+                    switch_color_map(settings.color_maps[i]);
+                }
+
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        if (ImGui::Button("Delete Surface")) delete_surface();
+        ImGui::SameLine();
+        if (settings.interact_mode != InteractMode::Brush) {
+            if (ImGui::Button("Enable Brush"))   switch_mode(InteractMode::Brush);
+        } else {
+            if (ImGui::Button("Disable Brush"))  switch_mode(InteractMode::Idle);
+            ImGui::Text("Brush Value");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ImGui::SliderFloat("##Brush Value", &settings.brush_strength, 0.01f, 1.0f);
+        }
+
+        ImGui::SeparatorText("Solver");
+        ImGui::Text(std::format("{} Equation:", settings.solvers[settings.selected_solver]).c_str());
+        ImGui::Image(settings.solver_equation_textures[settings.selected_solver].first, settings.solver_equation_textures[settings.selected_solver].second);
+        ImGui::Separator();
         if (ImGui::BeginCombo("Solver", settings.solvers[settings.selected_solver], ImGuiComboFlags_WidthFitPreview)) {
             for (int i = 0; i < settings.solvers.size(); i++) {
                 const bool is_selected = (settings.selected_solver == i);
@@ -200,22 +237,49 @@ void Application::render_gui() {
             }
             ImGui::EndCombo();
         }
-        if (ImGui::BeginCombo("Color Map", settings.color_maps[settings.selected_color_map], ImGuiComboFlags_WidthFitPreview)) {
-            for (int i = 0; i < settings.color_maps.size(); i++) {
-                const bool is_selected = (settings.selected_color_map == i);
-                if (ImGui::Selectable(settings.color_maps[i], is_selected)) {
-                    settings.selected_color_map = i;
-                    switch_color_map(settings.color_maps[i]);
-                }
 
-                if (is_selected)
-                    ImGui::SetItemDefaultFocus();
-            }
-            ImGui::EndCombo();
+        if (!settings.paused) {
+            if (ImGui::Button("Pause")) settings.paused = true;
+        } else {
+            if (ImGui::Button("Unpause")) settings.paused = false;
         }
-        if (ImGui::Button("Delete Surface")) delete_surface();
-        if (ImGui::Button("Clear Surface"))  clear_surface();
-        if (ImGui::Button("Enable Brush"))   switch_mode_brush();
+        ImGui::SameLine();
+        if (ImGui::Button("Clear Solver"))  clear_solver();
+        switch ((SolverType)settings.selected_solver) {
+            case SolverType::Heat: {
+                ImGui::Text("Time Step");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Heat Time Step", &((HeatSolver*)solver.get())->time_step, 0.005f, 0.25f); 
+                ImGui::Text("Conductivity");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Heat c", &((HeatSolver*)solver.get())->conductivity, 0.005f, 0.25f);
+            } break;
+            case SolverType::Wave: {
+                ImGui::Text("Time Step");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Wave Time Step", &((WaveSolver*)solver.get())->time_step, 0.005f, 0.25f); 
+                ImGui::Text("c");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Wave c", &((WaveSolver*)solver.get())->c, 0.005f, 0.25f);
+            } break;
+            case SolverType::Advection_Diffusion: {
+                AdvectionDiffusionSolver* advection_diffusion_solver = (AdvectionDiffusionSolver*)solver.get();
+                ImGui::Text("Time Step");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Advection-Diffusion Time Step", &advection_diffusion_solver->time_step, 0.001f, 0.005f); 
+                ImGui::Text("Velocity");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                if (ImGui::SliderFloat3("##Advection-Diffusion Velocity", advection_diffusion_solver->velocity.data(), -1.0f, 1.0f))
+                    advection_diffusion_solver->assemble();
+            } break;
+        }
+    }
+
+    if (ImGui::BeginPopupModal("Error", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+        ImGui::Text(settings.error_message.c_str());
+        if (ImGui::Button("Close"))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
     }
 
     switch (settings.interact_mode) {
@@ -246,7 +310,7 @@ void Application::render_gui() {
         case InteractMode::Brush: {
             ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
             ImGui::Begin("Mode: Brush", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-            ImGui::Text("<LMB> on elements to set the values of their nodes.");
+            ImGui::Text("<LMB> on the mesh to set nodal values.");
             ImGui::End();
         } break;
     }
@@ -263,17 +327,15 @@ void Application::run() {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-        double mouse_x, mouse_y;
-        glfwGetCursorPos(window, &mouse_x, &mouse_y);
-        if (gui_visible) mouse_x -= gui_width;
-
-        if (gui_visible) render_gui();
-
+        if (gui_visible)
+            render_gui();
         if (settings.interact_mode == InteractMode::DrawPSLG)
             pslg->set_pending_point(get_mouse_to_grid_plane_point());
         if (ImGui::GetIO().WantCaptureMouse)
             pslg->pending_point.reset();
-        if (solver->surface)
+        if (settings.interact_mode == InteractMode::Brush && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS))
+            brush(get_world_ray_from_mouse(), camera->get_camera_position(), settings.brush_strength);
+        if (solver->surface && !settings.paused)
             solver->advance_time();
 
         render();
@@ -298,7 +360,8 @@ void Application::clear_pslg() {
 void Application::clear_holes() {
     pslg->clear_holes();
 }
-void Application::clear_surface() {
+void Application::clear_solver() {
+    solver->clear_values();
     surface->clear_values();
 }
 void Application::delete_surface() {
@@ -307,25 +370,33 @@ void Application::delete_surface() {
     bvh = nullptr;
 }
 void Application::init_surface_from_pslg() {
-    clear_surface(); 
+    delete_surface(); 
 
     surface->init_from_PSLG(*pslg);
     solver->surface = surface;
     solver->init();
     bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+    switch_mode(InteractMode::Brush);
 
     clear_pslg();
 }
 void Application::init_surface_from_obj() {
     clear_pslg();
-    clear_surface(); 
+    delete_surface(); 
 
     nfdchar_t *out_path = NULL;		
     nfdresult_t result = NFD_OpenDialog(NULL, NULL, &out_path);
-    surface->init_from_obj(out_path);
-    solver->surface = surface;
-    solver->init();
-    bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+    if (!std::filesystem::exists(out_path)) return;
+    try {
+        surface->init_from_obj(out_path);
+        solver->surface = surface;
+        solver->init();
+        bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+        switch_mode(InteractMode::Brush);
+    } catch (std::runtime_error& e) {
+        settings.error_message = e.what();
+        ImGui::OpenPopup("Error");
+    }
 }
 void Application::switch_solver(SolverType new_solver) {
     bool valid_new_solver = false;
@@ -345,24 +416,39 @@ void Application::switch_solver(SolverType new_solver) {
             break;
     }
 
-    if (valid_new_solver && surface->initialized) {
-        solver->surface = surface;
-        solver->init();
+    if (valid_new_solver) {
+        if (surface->initialized) {
+            solver->surface = surface;
+            solver->init();
+        }
+        settings.selected_solver = (int)new_solver;
     }
 }
 void Application::switch_color_map(const char* new_color_map) {
-    surface->color_map = color_maps.get(new_color_map);
+    for (int i = 0; i < settings.color_maps.size(); i++) {
+        if (std::string(settings.color_maps[i]) == std::string(new_color_map)) {
+            settings.selected_color_map = i;
+            surface->color_map = color_maps.get(new_color_map);
+        }
+    }
 }
 
-void Application::switch_mode_draw_pslg() {
-    camera->align_to_plane();
-    settings.interact_mode = InteractMode::DrawPSLG;
-}
-void Application::switch_mode_add_hole() {
-    settings.interact_mode = InteractMode::AddHole;
-}
-void Application::switch_mode_brush() {
-    settings.interact_mode = InteractMode::Brush;
+void Application::switch_mode(InteractMode mode) {
+    switch (mode) {
+        case InteractMode::Idle:
+            settings.interact_mode = InteractMode::Idle;
+            break;
+        case InteractMode::DrawPSLG:
+            camera->align_to_plane();
+            settings.interact_mode = InteractMode::DrawPSLG;
+            break;
+        case InteractMode::AddHole:
+            settings.interact_mode = InteractMode::AddHole;
+            break;
+        case InteractMode::Brush:
+            settings.interact_mode = InteractMode::Brush;
+            break;
+    }
 }
 
 /**
@@ -439,6 +525,16 @@ void Application::init_opengl_window(unsigned int window_width, unsigned int win
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     glfwSetWindowUserPointer(window, this);
     set_glfw_callbacks();
+
+    // Set the icon if it exists, otherwise, no sweat :)
+    if (std::filesystem::exists("assets/icon.png")) {
+        GLFWimage images[1];
+        int width, height, channels;
+        images[0].pixels = stbi_load("assets/icon.png", &width, &height, &channels, 0);
+        images[0].width = width;
+        images[0].height = height;
+        glfwSetWindowIcon(window, 1, images);
+    }
 }
 void Application::set_glfw_callbacks() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -490,23 +586,13 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
 	last_y = (float)y;
 
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-        app->camera->pan(-dx, -dy);
+        app->camera->pan(dx, dy);
     }
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
         app->camera->rotate(dx, dy);
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     } else {
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    }
-
-
-    switch (app->settings.interact_mode) {
-        case InteractMode::Brush: {
-            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)) {
-                app->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f);
-            }
-        } break;
-
     }
 }
 void scroll_callback(GLFWwindow* window, double dx, double dy) {
@@ -559,11 +645,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
                 app->pslg->add_hole(app->get_mouse_to_grid_plane_point());
                 app->settings.interact_mode = InteractMode::DrawPSLG;
-            }
-        } break;
-        case InteractMode::Brush: {
-            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(mods & GLFW_MOD_SHIFT)) {
-                app->brush(app->get_world_ray_from_mouse(), app->camera->get_camera_position(), 1.0f);
             }
         } break;
     }

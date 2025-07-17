@@ -6,9 +6,7 @@
 
 #include <iostream>
 
-void WaveSolver::assemble() {
-    assemble_stiffness_matrix();
-    assemble_mass_matrix();
+void WaveSolver::clear_values() {
     u.resize(surface->num_unknown_nodes());
     u.setZero();
     v.resize(surface->num_unknown_nodes());

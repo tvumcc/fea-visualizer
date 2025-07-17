@@ -14,6 +14,6 @@ public:
     float c = 0.05f;
     float time_step = 0.05f;
 
-    void assemble() override;
+    void clear_values() override;
     void advance_time() override;
 };

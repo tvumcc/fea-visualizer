@@ -8,6 +8,9 @@ void AdvectionDiffusionSolver::assemble() {
     assemble_stiffness_matrix();
     assemble_mass_matrix();
     assemble_advection_matrix();
+}
+
+void AdvectionDiffusionSolver::clear_values() {
     u.resize(surface->num_unknown_nodes());
     u.setZero();
 }
@@ -39,7 +42,7 @@ void AdvectionDiffusionSolver::assemble_advection_matrix() {
         A.transposeInPlace();
 
         Eigen::Vector3f plane_normal = {normal.x, normal.y, normal.z};
-        Eigen::Vector3f transformed_velocity = velocity - velocity.dot(plane_normal) / (plane_normal.norm() * plane_normal.norm()) * plane_normal;
+        Eigen::Vector3f transformed_velocity = (velocity - velocity.dot(plane_normal) / (plane_normal.norm() * plane_normal.norm()) * plane_normal).normalized();
 
         std::array<Eigen::Vector3f, 3> physical_gradients;
         for (int i = 0; i < 3; i++)
@@ -66,7 +69,7 @@ void AdvectionDiffusionSolver::assemble_advection_matrix() {
 void AdvectionDiffusionSolver::advance_time() {
     u = get_surface_value_vector();
 
-    Eigen::SparseMatrix<float> A = (mass_matrix / time_step) + (c * stiffness_matrix) - 5.0f * advection_matrix;
+    Eigen::SparseMatrix<float> A = (mass_matrix / time_step) + (c * stiffness_matrix) - 2.0f * advection_matrix;
     Eigen::VectorXf b = (mass_matrix / time_step) * u;
 
     Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower|Eigen::Upper> cg;

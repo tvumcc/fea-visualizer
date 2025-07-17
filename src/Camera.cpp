@@ -2,6 +2,9 @@
 
 #include "Camera.hpp"
 
+#include <iostream>
+#include <format>
+
 Camera::Camera() {
     update_camera_position();
 }
@@ -53,19 +56,16 @@ void Camera::zoom(float dr) {
  * Move the camera's orbit point depending on what direction the camera is facing.
  * 
  * @param dx The change in the x position, presumably from the mouse
- * @param dy The change in the y position, presumable from the mouse
+ * @param dy The change in the y position, presumably from the mouse
  */
 void Camera::pan(float dx, float dy) {
     glm::vec3 camera_direction = get_facing_direction();
-    glm::vec3 right;
-    right = glm::normalize(glm::cross(up, camera_direction));
-    if (std::abs(glm::dot(up, -camera_direction) - 1.0f) < 1e-6)
-        right = glm::vec3(1.0f, 0.0f, 0.0f);
 
-    glm::vec3 above = glm::normalize(glm::cross(right, camera_direction));
+    glm::vec3 camera_right = glm::normalize(glm::cross(up, camera_direction));
+    glm::vec3 camera_up = glm::normalize(glm::cross(camera_right, camera_direction));
 
-    orbit_position += right * dx * pan_sensitivity;
-    orbit_position += above * dy * pan_sensitivity;
+    orbit_position += camera_right * dx * pan_sensitivity;
+    orbit_position += camera_up * dy * pan_sensitivity;
 
     update_camera_position();
 }

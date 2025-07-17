@@ -16,6 +16,8 @@ public:
     float time_step = 0.001f;
 
     void assemble() override;
-    void assemble_advection_matrix();
+    void clear_values() override;
     void advance_time() override;
+private:
+    void assemble_advection_matrix();
 };

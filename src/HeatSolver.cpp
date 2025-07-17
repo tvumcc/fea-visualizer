@@ -6,9 +6,7 @@
 
 #include <iostream>
 
-void HeatSolver::assemble() {
-    assemble_stiffness_matrix();
-    assemble_mass_matrix();
+void HeatSolver::clear_values() {
     u.resize(surface->num_unknown_nodes());
     u.setZero();
 }

@@ -16,10 +16,11 @@ public:
 
     void init();
     virtual void advance_time() = 0;
+    virtual void clear_values() = 0;
+    virtual void assemble();
 protected:
     void assemble_stiffness_matrix();
     void assemble_mass_matrix();
-    virtual void assemble();
     Eigen::VectorXf get_surface_value_vector();
     void map_vector_to_surface(Eigen::VectorXf solution_vector);
 };

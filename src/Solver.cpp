@@ -16,6 +16,7 @@ void Solver::init() {
                 idx_map[i] = idx++;
 
         assemble();
+        clear_values();
     }
 }
 

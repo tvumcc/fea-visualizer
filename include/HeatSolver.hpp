@@ -13,6 +13,6 @@ public:
     float conductivity = 0.05f;
     float time_step = 0.01f;
 
-    void assemble() override;
+    void clear_values() override;
     void advance_time() override;
 };

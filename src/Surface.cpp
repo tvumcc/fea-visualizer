@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <format>
+#include <exception>
+#include <filesystem>
 
 // This define is needed so that triangle (the triangulation library this project uses) will function as a library that is callable from code.
 #define TRI_LIBRARY
@@ -19,7 +21,7 @@
  * 
  * @param pslg The PSLG to intialize this surface with.
  */
-bool Surface::init_from_PSLG(PSLG& pslg) {
+void Surface::init_from_PSLG(PSLG& pslg) {
     if (pslg.closed()) {
         clear();
         std::vector<double> in_vertices(pslg.vertices.size() * 2, 0.0);
@@ -40,9 +42,6 @@ bool Surface::init_from_PSLG(PSLG& pslg) {
         closed = false;
         initialized = true;
         load_buffers();
-        return true;
-    } else {
-        return false;
     }
 }
 
@@ -52,21 +51,26 @@ bool Surface::init_from_PSLG(PSLG& pslg) {
  * 
  * @param file_path The path to the .obj file with which to initalize the surface.
  */
-bool Surface::init_from_obj(const char* file_path) {
-    clear();
+void Surface::init_from_obj(const char* file_path) {
+    if (!std::filesystem::exists(file_path))
+        throw std::runtime_error("A valid file was not provided.");
+
     tinyobj::ObjReader reader;
     tinyobj::ObjReaderConfig reader_config;
     reader_config.triangulate = true;
 
-    if (!reader.ParseFromFile(file_path, reader_config)) {
+    if (!reader.ParseFromFile(file_path, reader_config))
         if (!reader.Error().empty())
-            std::cerr << "[ERROR] TinyObjReader: " << reader.Error();
-        exit(1);
-    }
+            throw std::runtime_error(std::format("Error parsing file: {}", reader.Error()));
 
     auto& attrib = reader.GetAttrib();
     auto& shapes = reader.GetShapes();
+    if (attrib.vertices.size() == 0)
+        throw std::runtime_error(std::format("File {} does not contain a valid .obj mesh.", file_path));
+    if (attrib.normals.size() == 0)
+        throw std::runtime_error(std::format("File {} does not contain normals!", file_path));
     
+    clear();
     for (int s = 0; s < shapes.size(); s++) {
         int index_offset = 0;
         for (int i = 0; i < attrib.vertices.size() / 3; i++) {
@@ -123,8 +127,6 @@ bool Surface::init_from_obj(const char* file_path) {
     closed = num_boundary_points == 0;
     initialized = true;
     load_buffers(); 
-
-    return true;
 }
 
 /**

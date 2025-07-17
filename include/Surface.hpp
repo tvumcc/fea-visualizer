@@ -45,8 +45,8 @@ public:
     bool initialized = false;
     const glm::vec3 EDGE_COLOR = glm::vec3(0.9f, 0.9f, 0.9f);
 
-    bool init_from_PSLG(PSLG& pslg);
-    bool init_from_obj(const char* file_path);
+    void init_from_PSLG(PSLG& pslg);
+    void init_from_obj(const char* file_path);
 
     void draw(bool wireframe);
     void clear();
