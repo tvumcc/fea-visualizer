@@ -107,6 +107,8 @@ void Application::load() {
 
     switch_solver(SolverType::Wave);
     switch_color_map("Viridis");
+
+    std::cout << glGetString(GL_VERSION) << "\n";
 }
 
 /**
@@ -515,8 +517,8 @@ void Application::init_opengl_window(unsigned int window_width, unsigned int win
     this->window_height = window_height;
 
 	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SAMPLES, 4);
 

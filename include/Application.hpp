@@ -59,7 +59,7 @@ struct Settings {
         for (int i = 0; i < solvers.size(); i++) {
             GLuint texture;
             int width, height, channels;
-            unsigned char *data = stbi_load(std::format("assets/{}_Equation.png", solvers[i]).c_str(), &width, &height, &channels, 0);
+            unsigned char *data = stbi_load(std::format("assets/equations/{}_Equation.png", solvers[i]).c_str(), &width, &height, &channels, 0);
             glGenTextures(1, &texture);
             glBindTexture(GL_TEXTURE_2D, texture);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -75,7 +75,7 @@ struct Settings {
         for (int i = 0; i < color_maps.size(); i++) {
             GLuint texture;
             int width, height, channels;
-            unsigned char *data = stbi_load(std::format("assets/{}.png", color_maps[i]).c_str(), &width, &height, &channels, 0);
+            unsigned char *data = stbi_load(std::format("assets/cmap_icons/{}.png", color_maps[i]).c_str(), &width, &height, &channels, 0);
             glGenTextures(1, &texture);
             glBindTexture(GL_TEXTURE_2D, texture);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

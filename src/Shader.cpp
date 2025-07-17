@@ -111,34 +111,6 @@ unsigned int Shader::compile_geometry_shader(const std::string& geometry_source_
 }
 
 /**
- * Create a compute shader given the path to a source file.
- * 
- * @param compute_source_path File path to the Compute Shader
- */
-ComputeShader::ComputeShader(const std::string& compute_source_path) {
-    std::string line, text;
-    std::ifstream file(compute_source_path);
-
-    // Read compute shader from file
-    while(std::getline(file, line))
-        text += line + "\n";
-    file.close();
-    const char* source = text.c_str();
-
-    // Compile compute shader and check for errors
-    unsigned int CS = glCreateShader(GL_COMPUTE_SHADER);
-    glShaderSource(CS, 1, &source, NULL);
-    glCompileShader(CS);
-    checkErrors(CS, ShaderType::Compute, compute_source_path);
-
-    // Link compute shader into a program
-    this->ID = glCreateProgram();
-    glAttachShader(ID, CS);
-    glLinkProgram(ID);
-    glDeleteShader(CS);
-}
-
-/**
  * Bind shader to OpenGL state.
  */
 void AbstractShader::bind() {

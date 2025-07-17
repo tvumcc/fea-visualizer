@@ -32,8 +32,3 @@ public:
 private:
     unsigned int compile_geometry_shader(const std::string& geometry_source_path);
 };
-
-class ComputeShader : public AbstractShader {
-public:
-    ComputeShader(const std::string& source_path);
-};
