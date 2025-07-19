@@ -37,7 +37,6 @@ public:
 
     std::shared_ptr<Shader> wireframe_shader;
     std::shared_ptr<Shader> fem_mesh_shader;
-    std::shared_ptr<Mesh> sphere_mesh;
     std::shared_ptr<ColorMap> color_map;
 
     int num_boundary_points = 0;

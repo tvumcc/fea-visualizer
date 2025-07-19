@@ -5,9 +5,7 @@
 
 #include <vector>
 
-GridInterface::GridInterface() :
-    panning_locator_mesh("assets/sphere.obj")
-{
+GridInterface::GridInterface() {
     for (int i = -grid_lines_per_quadrant; i <= grid_lines_per_quadrant; i++) {
         if (i != 0) {
             vertices.push_back(glm::vec3(i * grid_spacing, 0.0f, grid_lines_per_quadrant * grid_spacing));
@@ -73,6 +71,6 @@ void GridInterface::draw(std::shared_ptr<Camera> camera, bool draw_panning_locat
         solid_color_shader->set_mat4x4("model", model);
         solid_color_shader->set_mat4x4("view_proj", camera->get_view_projection_matrix());
         solid_color_shader->set_vec3("object_color", panning_locator_color);
-        panning_locator_mesh.draw(*solid_color_shader, GL_TRIANGLES);
+        sphere_mesh->draw(*solid_color_shader, GL_TRIANGLES);
     }
 }

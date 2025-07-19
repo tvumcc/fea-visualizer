@@ -34,7 +34,7 @@ Application::~Application() {
  */
 void Application::load_resources() {
     // Meshes
-    meshes.add("sphere", std::make_shared<Mesh>("assets/sphere.obj"));
+    meshes.add("sphere", std::make_shared<Mesh>("assets/meshes/sphere.obj"));
 
     // Shaders
     shaders.add("default", std::make_shared<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"));
@@ -120,15 +120,14 @@ void Application::load() {
     grid_interface = std::make_shared<GridInterface>();
     grid_interface->solid_color_shader = shaders.get("solid_color");
     grid_interface->vertex_color_shader = shaders.get("vertex_color");
+    grid_interface->sphere_mesh = meshes.get("sphere");
 
     pslg = std::make_shared<PSLG>();
     pslg->shader = shaders.get("solid_color");
-    pslg->sphere_mesh = meshes.get("sphere");
 
     surface = std::make_shared<Surface>();
     surface->wireframe_shader = shaders.get("wireframe");
     surface->fem_mesh_shader = shaders.get("fem_mesh");
-    surface->sphere_mesh = meshes.get("sphere");
 
     switch_solver(SolverType::Reaction_Diffusion);
     switch_color_map("Viridis");
@@ -381,7 +380,7 @@ void Application::run() {
             solver->advance_time();
             if (solver->has_numerical_instability()) {
                 solver->clear_values();
-                settings.error_message = "Numerical instability detected! Try changing the solver's parameters.\n Clearing solver values...";
+                settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values...";
                 ImGui::OpenPopup("Error");
             }
         }
