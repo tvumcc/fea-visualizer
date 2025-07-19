@@ -9,8 +9,13 @@ In particular, this project currently provides solvers for the following equatio
 - [Advection-Diffusion Equation](https://en.wikipedia.org/wiki/Convection%E2%80%93diffusion_equation)
 - [Gray-Scott Reaction-Diffusion Equation](https://groups.csail.mit.edu/mac/projects/amorphous/GrayScott/)
 
+
 ## Demo Video
-The link to the demo video can be found [here]().
+The link to the demo video can be found [here](https://youtu.be/HCXcph40qVo).
+
+## Screenshots
+![Screenshot of Finite Element Visualizer: Reaction-Diffusion](assets/screenshot.png)
+![Screenshot of Finite Element Visualizer: Wave](assets/screenshot2.png)
 
 ## Usage
 
