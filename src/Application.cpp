@@ -43,7 +43,7 @@ void Application::load_resources() {
     shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
     shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
 
-    // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same.
+    // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same. (as well as the image icon file)
     color_maps.add("Viridis", std::make_shared<ColorMap>(
         "Viridis",
         std::array<glm::vec3, 7>({
@@ -154,6 +154,7 @@ void Application::render() {
 
     shaders.get("fem_mesh")->bind();
     shaders.get("fem_mesh")->set_float("vertex_extrusion", settings.vertex_extrusion);
+    shaders.get("fem_mesh")->set_float("pixel_discard_threshold", settings.pixel_discard_threshold);
     shaders.get("wireframe")->bind();
     shaders.get("wireframe")->set_float("vertex_extrusion", settings.vertex_extrusion);
     surface->draw(settings.draw_surface_wireframe);
@@ -241,7 +242,7 @@ void Application::render_gui() {
         ImGui::Text(std::format("{} nodes", solver->surface->vertices.size()).c_str());
         ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
         ImGui::Separator();
-        ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
+        ImGui::Checkbox("Draw Triangle Mesh", &settings.draw_surface_wireframe);
         ImGui::Image(settings.color_map_icon_textures[settings.selected_color_map].first, 
             ImVec2(settings.color_map_icon_textures[settings.selected_color_map].second.x * 1.5, settings.color_map_icon_textures[settings.selected_color_map].second.y * 1.5));
         ImGui::SameLine();
@@ -274,6 +275,9 @@ void Application::render_gui() {
         ImGui::Text("Vertex Extrusion");
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
         ImGui::SliderFloat("##Vertex Extrusion", &settings.vertex_extrusion, 0.0f, 1.0f);
+        ImGui::Text("Pixel Discard Threshold");
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        ImGui::SliderFloat("##Pixel Discard Threshold", &settings.pixel_discard_threshold, 0.0f, 1.0f);
 
         ImGui::SeparatorText("Solver");
         if (ImGui::BeginCombo("Solver", settings.solvers[settings.selected_solver], ImGuiComboFlags_WidthFitPreview)) {
@@ -374,14 +378,12 @@ void Application::run() {
         if (settings.interact_mode == InteractMode::Brush && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS))
             brush(get_world_ray_from_mouse(), camera->get_camera_position(), settings.brush_strength);
         if (solver->surface && !settings.paused) {
-            for (int i = 0; i < 3; i++) {
-                solver->advance_time();
-                if (solver->has_numerical_instability()) {
-                    solver->clear_values();
-                    settings.error_message = "Numerical instability detected! Try changing the solver's parameters.\n Clearing solver values...";
-                    ImGui::OpenPopup("Error");
-                }
-            } 
+            solver->advance_time();
+            if (solver->has_numerical_instability()) {
+                solver->clear_values();
+                settings.error_message = "Numerical instability detected! Try changing the solver's parameters.\n Clearing solver values...";
+                ImGui::OpenPopup("Error");
+            }
         }
 
         if (ImGui::BeginPopupModal("Error", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
@@ -492,7 +494,6 @@ void Application::switch_color_map(const char* new_color_map) {
         }
     }
 }
-
 void Application::switch_mode(InteractMode mode) {
     switch (mode) {
         case InteractMode::Idle:
@@ -580,7 +581,7 @@ void Application::init_opengl_window(unsigned int window_width, unsigned int win
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SAMPLES, 4);
 
-    window = glfwCreateWindow(window_width, window_height, "FEA Visualizer", NULL, NULL);
+    window = glfwCreateWindow(window_width, window_height, "Finite Element Visualizer", NULL, NULL);
 	glfwMakeContextCurrent(window);
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     glfwSetWindowUserPointer(window, this);

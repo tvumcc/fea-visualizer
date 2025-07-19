@@ -33,12 +33,15 @@ enum class SolverType {
 
 struct Settings {
     InteractMode interact_mode = InteractMode::Idle;
+    std::string error_message = "";
+
     bool draw_grid_interface = true;
     bool draw_surface_wireframe = true;
     bool paused = false;
     int bvh_depth = 10;
     float brush_strength = 1.0f;
     float vertex_extrusion = 0.5f;
+    float pixel_discard_threshold = 0.0f;
 
     std::vector<std::pair<GLuint, ImVec2>> solver_equation_textures;
     std::vector<const char*> solvers = {"Heat", "Wave", "Advection-Diffusion", "Reaction-Diffusion"};
@@ -48,7 +51,6 @@ struct Settings {
     std::vector<const char*> color_maps;
     int selected_color_map = 0;
 
-    std::string error_message = "";
 
     void init_color_maps(ResourceManager<ColorMap> cmaps) {
         cmaps.perform_action_on_all([this](ColorMap& cmap){
