@@ -258,7 +258,7 @@ void Surface::perform_triangulation(double* vertices, int num_vertices, int* seg
     tri_out.segmentlist = NULL;
     tri_out.segmentmarkerlist = NULL;
     
-    char args[] = "eqpza0.05";
+    char args[] = "Qeqpza0.005";
     triangulate(args, &tri_in, &tri_out, NULL);
 
     this->vertices = std::vector<glm::vec3>(tri_out.numberofpoints, glm::vec3(0.0));

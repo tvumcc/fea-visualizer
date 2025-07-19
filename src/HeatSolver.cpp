@@ -23,3 +23,12 @@ void HeatSolver::advance_time() {
 
     map_vector_to_surface(u);
 }
+
+bool HeatSolver::has_numerical_instability() {
+    for (int i = 0; i < u.size(); i++) {
+        if (u.coeff(i) > 1e4f) {
+            return true;
+        }
+    }
+    return false;
+}

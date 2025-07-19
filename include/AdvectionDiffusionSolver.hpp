@@ -18,6 +18,7 @@ public:
     void assemble() override;
     void clear_values() override;
     void advance_time() override;
+    bool has_numerical_instability() override;
 private:
     void assemble_advection_matrix();
 };

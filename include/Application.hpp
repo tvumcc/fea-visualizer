@@ -27,20 +27,21 @@ enum class InteractMode {
 enum class SolverType {
     Heat = 0,
     Wave,
-    Advection_Diffusion
+    Advection_Diffusion,
+    Reaction_Diffusion
 };
 
 struct Settings {
     InteractMode interact_mode = InteractMode::Idle;
     bool draw_grid_interface = true;
     bool draw_surface_wireframe = true;
-    bool extrude_nodes = true;
     bool paused = false;
     int bvh_depth = 10;
     float brush_strength = 1.0f;
+    float vertex_extrusion = 0.5f;
 
     std::vector<std::pair<GLuint, ImVec2>> solver_equation_textures;
-    std::vector<const char*> solvers = {"Heat", "Wave", "Advection-Diffusion"};
+    std::vector<const char*> solvers = {"Heat", "Wave", "Advection-Diffusion", "Reaction-Diffusion"};
     int selected_solver = (int)SolverType::Heat;
 
     std::vector<std::pair<GLuint, ImVec2>> color_map_icon_textures;

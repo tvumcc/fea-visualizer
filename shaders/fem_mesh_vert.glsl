@@ -5,13 +5,11 @@ layout (location = 2) in float aValue;
 
 uniform mat4 model;
 uniform mat4 view_proj;
-uniform int extrude_nodes;
+uniform float vertex_extrusion;
 
 out float value;
 
 void main() {
     value = aValue;
-    vec3 extrusion = vec3(0.0);
-    if (extrude_nodes == 1) extrusion = min(0.7, max(0.0, aValue)) * aNormal;
-    gl_Position = view_proj * (model * vec4(extrusion + aPos, 1.0));
+    gl_Position = view_proj * (model * vec4(min(1.0, vertex_extrusion * max(0.0, aValue)) * aNormal + aPos, 1.0));
 }

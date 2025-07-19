@@ -26,3 +26,12 @@ void WaveSolver::advance_time() {
 
     map_vector_to_surface(u);
 }
+
+bool WaveSolver::has_numerical_instability() {
+    for (int i = 0; i < u.size(); i++) {
+        if (u.coeff(i) > 1e4 || v.coeff(i) > 1e4) {
+            return true;
+        }
+    }
+    return false;
+}

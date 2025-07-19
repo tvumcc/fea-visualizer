@@ -17,6 +17,7 @@ public:
     void init();
     virtual void advance_time() = 0;
     virtual void clear_values() = 0;
+    virtual bool has_numerical_instability() = 0;
     virtual void assemble();
 protected:
     void assemble_stiffness_matrix();

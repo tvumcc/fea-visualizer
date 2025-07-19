@@ -69,7 +69,7 @@ void AdvectionDiffusionSolver::assemble_advection_matrix() {
 void AdvectionDiffusionSolver::advance_time() {
     u = get_surface_value_vector();
 
-    Eigen::SparseMatrix<float> A = (mass_matrix / time_step) + (c * stiffness_matrix) - 2.0f * advection_matrix;
+    Eigen::SparseMatrix<float> A = (mass_matrix / time_step) + (c * stiffness_matrix) - advection_matrix;
     Eigen::VectorXf b = (mass_matrix / time_step) * u;
 
     Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower|Eigen::Upper> cg;
@@ -77,4 +77,13 @@ void AdvectionDiffusionSolver::advance_time() {
     u = cg.solve(b);
 
     map_vector_to_surface(u);
+}
+
+bool AdvectionDiffusionSolver::has_numerical_instability() {
+    for (int i = 0; i < u.size(); i++) {
+        if (u.coeff(i) > 1e4) {
+            return true;
+        }
+    }
+    return false;
 }

@@ -8,6 +8,7 @@
 #include "HeatSolver.hpp"
 #include "WaveSolver.hpp"
 #include "AdvectionDiffusionSolver.hpp"
+#include "ReactionDiffusionSolver.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -129,7 +130,7 @@ void Application::load() {
     surface->fem_mesh_shader = shaders.get("fem_mesh");
     surface->sphere_mesh = meshes.get("sphere");
 
-    switch_solver(SolverType::Wave);
+    switch_solver(SolverType::Reaction_Diffusion);
     switch_color_map("Viridis");
 
     std::cout << glGetString(GL_VERSION) << "\n";
@@ -152,9 +153,9 @@ void Application::render() {
     pslg->draw();
 
     shaders.get("fem_mesh")->bind();
-    shaders.get("fem_mesh")->set_bool("extrude_nodes", settings.extrude_nodes);
+    shaders.get("fem_mesh")->set_float("vertex_extrusion", settings.vertex_extrusion);
     shaders.get("wireframe")->bind();
-    shaders.get("wireframe")->set_bool("extrude_nodes", settings.extrude_nodes);
+    shaders.get("wireframe")->set_float("vertex_extrusion", settings.vertex_extrusion);
     surface->draw(settings.draw_surface_wireframe);
 
     if (settings.draw_grid_interface) grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
@@ -165,9 +166,6 @@ void Application::render() {
  */
 void Application::render_gui() {
     const ImGuiViewport *main_viewport = ImGui::GetMainViewport();
-	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y));
-	ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
-    ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
 
     ImGuiStyle& style = ImGui::GetStyle();
     style.FrameRounding = 6;
@@ -189,6 +187,35 @@ void Application::render_gui() {
     colors[ImGuiCol_Header] = ImVec4(0.46f, 0.26f, 0.98f, 0.40f);
     colors[ImGuiCol_HeaderHovered] = ImVec4(0.60f, 0.26f, 0.98f, 0.40f);
     colors[ImGuiCol_HeaderActive] = ImVec4(0.34f, 0.26f, 0.98f, 0.40f);
+
+    switch (settings.interact_mode) {
+        case InteractMode::Idle: {
+            if (ImGui::CollapsingHeader("Mode: Idle", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::TextWrapped("These controls also work in other modes.");
+                ImGui::TextWrapped("<RMB> and drag to rotate the camera.");
+                ImGui::TextWrapped("<Shift-LMB> and drag to pan.");
+                ImGui::TextWrapped("<Scroll> to zoom in and out.");
+                ImGui::TextWrapped("<E> to toggle the GUI.");
+            }
+        } break;
+        case InteractMode::DrawPSLG: {
+            if (ImGui::CollapsingHeader("Mode: PSLG Drawing", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::TextWrapped("<LMB> points in sequence to draw connected line segments.");
+                ImGui::TextWrapped("<Ctrl-Enter> to finalize a contiguous section of the drawing.");
+                ImGui::TextWrapped("<Enter> to finalize the entire drawing.");
+            }
+        } break;
+        case InteractMode::AddHole: {
+            if (ImGui::CollapsingHeader("Mode: Add Hole", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::TextWrapped("<LMB> in a closed region to designate it as a hole.");
+            }
+        } break;
+        case InteractMode::Brush: {
+            if (ImGui::CollapsingHeader("Mode: Brush", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::TextWrapped("<LMB> on the mesh to set nodal values.");
+            }
+        } break;
+    }
 
     ImGui::SeparatorText("Camera");
     if (ImGui::Button("Reset Orbit Position")) reset_orbit_position();
@@ -215,7 +242,6 @@ void Application::render_gui() {
         ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
         ImGui::Separator();
         ImGui::Checkbox("Draw Wireframe", &settings.draw_surface_wireframe);
-        ImGui::Checkbox("Extrude Nodes", &settings.extrude_nodes);
         ImGui::Image(settings.color_map_icon_textures[settings.selected_color_map].first, 
             ImVec2(settings.color_map_icon_textures[settings.selected_color_map].second.x * 1.5, settings.color_map_icon_textures[settings.selected_color_map].second.y * 1.5));
         ImGui::SameLine();
@@ -245,11 +271,11 @@ void Application::render_gui() {
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
             ImGui::SliderFloat("##Brush Value", &settings.brush_strength, 0.01f, 1.0f);
         }
+        ImGui::Text("Vertex Extrusion");
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        ImGui::SliderFloat("##Vertex Extrusion", &settings.vertex_extrusion, 0.0f, 1.0f);
 
         ImGui::SeparatorText("Solver");
-        ImGui::Text(std::format("{} Equation:", settings.solvers[settings.selected_solver]).c_str());
-        ImGui::Image(settings.solver_equation_textures[settings.selected_solver].first, settings.solver_equation_textures[settings.selected_solver].second);
-        ImGui::Separator();
         if (ImGui::BeginCombo("Solver", settings.solvers[settings.selected_solver], ImGuiComboFlags_WidthFitPreview)) {
             for (int i = 0; i < settings.solvers.size(); i++) {
                 const bool is_selected = (settings.selected_solver == i);
@@ -292,56 +318,39 @@ void Application::render_gui() {
                 AdvectionDiffusionSolver* advection_diffusion_solver = (AdvectionDiffusionSolver*)solver.get();
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Advection-Diffusion Time Step", &advection_diffusion_solver->time_step, 0.001f, 0.005f); 
+                ImGui::SliderFloat("##Advection-Diffusion Time Step", &advection_diffusion_solver->time_step, 0.001f, 0.003f); 
+                ImGui::Text("c");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Advection-Diffusion c", &((AdvectionDiffusionSolver*)solver.get())->c, 0.05f, 0.25f);
                 ImGui::Text("Velocity");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
                 if (ImGui::SliderFloat3("##Advection-Diffusion Velocity", advection_diffusion_solver->velocity.data(), -1.0f, 1.0f))
                     advection_diffusion_solver->assemble();
             } break;
+            case SolverType::Reaction_Diffusion: {
+                ImGui::Text("D_u = 0.08");
+                ImGui::Text("D_v = 0.04");
+                ImGui::Text("Time Step");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Reaction-Diffusion Time Step", &((ReactionDiffusionSolver*)solver.get())->time_step, 0.001f, 0.010f); 
+                ImGui::Text("Feed Rate");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Reaction-Diffusion Feed Rate", &((ReactionDiffusionSolver*)solver.get())->feed_rate, 0.0f, 0.1f); 
+                ImGui::Text("Kill Rate");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Reaction-Diffusion Kill Rate", &((ReactionDiffusionSolver*)solver.get())->kill_rate, 0.0f, 0.1f); 
+            } break;
         }
     }
 
-    if (ImGui::BeginPopupModal("Error", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
-        ImGui::Text(settings.error_message.c_str());
-        if (ImGui::Button("Close"))
-            ImGui::CloseCurrentPopup();
-        ImGui::EndPopup();
+    if (surface->initialized) {
+        ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Always);
+        ImGui::SetNextWindowContentSize(ImVec2(0, 0));
+        ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
+        ImGui::Begin(std::format("{} Equation:", settings.solvers[settings.selected_solver]).c_str(), nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize |ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+        ImGui::Image(settings.solver_equation_textures[settings.selected_solver].first, settings.solver_equation_textures[settings.selected_solver].second);
+        ImGui::End();
     }
-
-    switch (settings.interact_mode) {
-        case InteractMode::Idle: {
-            ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
-            ImGui::Begin("Mode: Idle", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-            ImGui::Text("These controls also work in other modes.");
-            ImGui::Bullet(); ImGui::Text("<RMB> and drag to rotate the camera.");
-            ImGui::Bullet(); ImGui::Text("<Shift-LMB> and drag to pan.");
-            ImGui::Bullet(); ImGui::Text("<Scroll> to zoom in and out.");
-            ImGui::Bullet(); ImGui::Text("<E> to toggle the GUI.");
-            ImGui::End();
-        } break;
-        case InteractMode::DrawPSLG: {
-            ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
-            ImGui::Begin("Mode: PSLG Drawing", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-            ImGui::Bullet(); ImGui::Text("<LMB> points in sequence to draw connected line segments.");
-            ImGui::Bullet(); ImGui::Text("<Ctrl-Enter> to finalize a contiguous section of the drawing.");
-            ImGui::Bullet(); ImGui::Text("<Enter> to finalize the entire drawing.");
-            ImGui::End();
-        } break;
-        case InteractMode::AddHole: {
-            ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
-            ImGui::Begin("Mode: Add Hole", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-            ImGui::Text("<LMB> in a closed region to designate it as a hole.");
-            ImGui::End();
-        } break;
-        case InteractMode::Brush: {
-            ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
-            ImGui::Begin("Mode: Brush", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-            ImGui::Text("<LMB> on the mesh to set nodal values.");
-            ImGui::End();
-        } break;
-    }
-
-    ImGui::End();
 }
 
 /**
@@ -353,18 +362,39 @@ void Application::run() {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-        if (gui_visible)
-            render_gui();
+        const ImGuiViewport *main_viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y));
+        ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
+        ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+
         if (settings.interact_mode == InteractMode::DrawPSLG)
             pslg->set_pending_point(get_mouse_to_grid_plane_point());
         if (ImGui::GetIO().WantCaptureMouse)
             pslg->pending_point.reset();
         if (settings.interact_mode == InteractMode::Brush && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS))
             brush(get_world_ray_from_mouse(), camera->get_camera_position(), settings.brush_strength);
-        if (solver->surface && !settings.paused)
-            solver->advance_time();
+        if (solver->surface && !settings.paused) {
+            for (int i = 0; i < 3; i++) {
+                solver->advance_time();
+                if (solver->has_numerical_instability()) {
+                    solver->clear_values();
+                    settings.error_message = "Numerical instability detected! Try changing the solver's parameters.\n Clearing solver values...";
+                    ImGui::OpenPopup("Error");
+                }
+            } 
+        }
 
+        if (ImGui::BeginPopupModal("Error", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+            ImGui::Text(settings.error_message.c_str());
+            if (ImGui::Button("Close"))
+                ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+        }
+
+        if (gui_visible)
+            render_gui();
         render();
+        ImGui::End();
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -438,6 +468,10 @@ void Application::switch_solver(SolverType new_solver) {
             break;
         case SolverType::Advection_Diffusion: 
             solver = std::make_shared<AdvectionDiffusionSolver>();
+            valid_new_solver = true;
+            break;
+        case SolverType::Reaction_Diffusion:
+            solver = std::make_shared<ReactionDiffusionSolver>();
             valid_new_solver = true;
             break;
     }
@@ -624,8 +658,10 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
 void scroll_callback(GLFWwindow* window, double dx, double dy) {
     Application* app = (Application*)glfwGetWindowUserPointer(window); 
 
-    app->camera->zoom(dy);
-    app->camera->rotate(dx, 0);
+    if (!ImGui::GetIO().WantCaptureMouse) {
+        app->camera->zoom(dy);
+        app->camera->rotate(dx, 0);
+    }
 }
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     Application* app = (Application*)glfwGetWindowUserPointer(window); 

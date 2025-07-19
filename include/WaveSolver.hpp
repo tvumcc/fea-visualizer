@@ -16,4 +16,5 @@ public:
 
     void clear_values() override;
     void advance_time() override;
+    bool has_numerical_instability() override;
 };

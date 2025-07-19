@@ -77,6 +77,7 @@ void Solver::assemble_stiffness_matrix() {
 
     stiffness_matrix.resize(num_nodes, num_nodes);
     stiffness_matrix.setFromTriplets(matrix_entries.begin(), matrix_entries.end());
+    stiffness_matrix.makeCompressed();
 }
 
 /**
