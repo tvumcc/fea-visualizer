@@ -124,12 +124,13 @@ void Application::load() {
 
     pslg = std::make_shared<PSLG>();
     pslg->shader = shaders.get("solid_color");
+    pslg->sphere_mesh = meshes.get("sphere");
 
     surface = std::make_shared<Surface>();
     surface->wireframe_shader = shaders.get("wireframe");
     surface->fem_mesh_shader = shaders.get("fem_mesh");
 
-    switch_solver(SolverType::Reaction_Diffusion);
+    switch_solver(SolverType::Wave);
     switch_color_map("Viridis");
 
     std::cout << glGetString(GL_VERSION) << "\n";
