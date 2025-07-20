@@ -51,7 +51,7 @@ cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-Be sure to use the appropriate generator for the OS you are compiling on. Run `cmake -G` to see a list of generators. If you are using MSVC, use the argument `--config Release` when calling the build command to compile in Release mode.
+Be sure to use the appropriate generator for the OS you are compiling on. Run `cmake -G` to see a list of generators. If you are using a multi-configuration generator like MSVC or Xcode, use the argument `--config Release` when calling the build command to compile in Release mode.
 
 When running the executable, make sure it is run from the same directory that contains the `shaders` and `assets` directories otherwise shaders and images will not be able to load.
 
