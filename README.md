@@ -1,7 +1,7 @@
 # Finite Element Visualizer 
 ![Hackatime Counter](https://hackatime-badge.hackclub.com/U091YQ9F6B0/fea-visualizer)
 
-This project aims to showcase the time propogation to solutions of partial differential equations on triangularly meshed surfaces in 3D space. Users can adjust parameters with sliders, set initial conditions with the mouse, and create surfaces from drawings or .obj files. 
+This project aims to showcase the time propogation of solutions to partial differential equations on triangularly meshed surfaces in 3D space by use of the [Finite Element Method](https://en.wikipedia.org/wiki/Finite_element_method). Users can adjust parameters with sliders, set initial conditions with the mouse, and create surfaces from line drawings or .obj files. 
 
 In particular, this project currently provides solvers for the following equations:
 - [Heat Equation](https://en.wikipedia.org/wiki/Heat_equation)
@@ -20,7 +20,7 @@ The link to the demo video can be found [here](https://youtu.be/HCXcph40qVo).
 ## Usage
 
 ### Initializing a Surface
-Before any solver can be used a valid surface must be initialized first. There are two ways to initialize said surface:
+Before any solver can be used, a valid surface must be initialized. There are two ways to initialize said surface:
 
 #### Draw a PSLG (Planar Straight Line Graph)
 

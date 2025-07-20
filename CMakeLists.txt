@@ -30,6 +30,7 @@ if(WIN32)
 	set(NFD_OS_FILE lib/nativefiledialog/src/nfd_win.cpp)
 elseif(APPLE)
     enable_language(OBJC)
+	set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64")	
     set(NFS_OS_FILE lib/nativefiledialog/src/nfd_cocoa.m)
 
 	find_library(APPKIT_FRAMEWORK AppKit)
