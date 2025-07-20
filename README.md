@@ -40,7 +40,7 @@ Once a surface is initialized, the application switches to brush mode where the 
 Be wary, however, of numerical instability that could arise when setting these parameters to be too extreme; this will trigger a pop up and clear the solver of its nodal values. In some cases, if using the brush causes numerical instability almost immediately, then try lowering the brush strength. Meshes with sharp edges and turns (around 90 degrees) can also cause problems so try to stick to those that are relatively smooth.
 
 ## Installation
-Builds for Windows, macOS, and Linux are available in the [Releases](https://github.com/tvumcc/fea-visualizer/releases) tab.
+Builds for Windows and Linux are available in the [Releases](https://github.com/tvumcc/fea-visualizer/releases) tab.
 
 ## Building from Source
 This project uses CMake for compilation, so make sure CMake is installed before proceeding.
