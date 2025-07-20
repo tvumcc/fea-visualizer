@@ -47,6 +47,7 @@ This project uses CMake for compilation, so make sure CMake is installed before 
 
 ```bash
 git clone https://github.com/tvumcc/fea-visualizer.git --recursive
+cd fea-visualizer
 cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
