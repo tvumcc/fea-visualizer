@@ -444,7 +444,7 @@ void Application::init_surface_from_obj() {
 
     nfdchar_t *out_path = NULL;		
     nfdresult_t result = NFD_OpenDialog(NULL, NULL, &out_path);
-    if (!std::filesystem::exists(out_path)) return;
+    if (result == NFD_CANCEL || result == NFD_ERROR || !std::filesystem::exists(out_path)) return;
     try {
         surface->init_from_obj(out_path);
         solver->surface = surface;
@@ -612,7 +612,7 @@ void Application::init_imgui(const char* font_path, int font_size) {
     io.Fonts->AddFontFromFileTTF(font_path, font_size);
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
-	ImGui_ImplOpenGL3_Init("#version 460");
+	ImGui_ImplOpenGL3_Init("#version 330");
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
