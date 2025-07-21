@@ -547,6 +547,15 @@ void Application::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
 glm::vec3 Application::get_world_ray_from_mouse() {
     double x_pos, y_pos;
     glfwGetCursorPos(window, &x_pos, &y_pos);
+    
+    // Get the content scale (DPI scaling factor)
+    float x_scale, y_scale;
+    glfwGetWindowContentScale(window, &x_scale, &y_scale);
+    
+    // Apply DPI scaling
+    x_pos *= x_scale;
+    y_pos *= y_scale;
+    
     if (gui_visible) x_pos -= gui_width;
 
     glm::vec3 nds_ray = glm::vec3((2.0f * x_pos) / (window_width - (gui_visible ? gui_width : 0)) - 1.0f, 1.0f - (2.0f * y_pos) / window_height, 1.0f);
