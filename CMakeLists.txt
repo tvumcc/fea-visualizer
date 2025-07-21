@@ -67,6 +67,53 @@ add_executable(${CMAKE_PROJECT_NAME}
     lib/tinyobjloader/tiny_obj_loader.cc
 )
 
+if(APPLE)
+    set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "FEA Visualizer"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+        MACOSX_BUNDLE_IDENTIFIER "com.tvumcc.feavisualizer"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.tvumcc.feavisualizer"
+        MACOSX_BUNDLE_EXECUTABLE_NAME "fea_visualizer"
+        MACOSX_DEPLOYMENT_TARGET "10.15"
+        BUILD_WITH_INSTALL_RPATH TRUE
+        INSTALL_RPATH "@executable_path/../Frameworks"
+    )
+
+	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
+		add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy 
+			${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png 
+			"$<TARGET_BUNDLE_CONTENT_DIR:${CMAKE_PROJECT_NAME}>/Resources/icon.png"
+			COMMENT "Copying icon.png to bundle"
+		)
+		set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES 
+			MACOSX_BUNDLE_ICON_FILE icon.png
+		)
+	endif()
+
+    # Copy resource folders into the app bundle
+    add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets "$<TARGET_BUNDLE_CONTENT_DIR:${CMAKE_PROJECT_NAME}>/Resources/assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/shaders "$<TARGET_BUNDLE_CONTENT_DIR:${CMAKE_PROJECT_NAME}>/Resources/shaders"
+        COMMENT "Copying resource directories to bundle"
+    )
+endif()
+
+# For Windows and Linux, copy resources next to the executable
+if(WIN32 OR (UNIX AND NOT APPLE))
+    add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/shaders "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/shaders"
+        COMMENT "Copying resource directories"
+    )
+endif()
+
 target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC ${OPENGL_LIBRARIES} glfw)
 if (APPLE)
     target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${APPKIT_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
