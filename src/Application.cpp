@@ -10,6 +10,7 @@
 #include "Solvers/WaveSolver.hpp"
 #include "Solvers/AdvectionDiffusionSolver.hpp"
 #include "Solvers/ReactionDiffusionSolver.hpp"
+#include "Utils/PSLG.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -263,6 +264,9 @@ void Application::render_gui() {
             }
             ImGui::EndCombo();
         }
+        if (ImGui::Button("Export .obj")) export_to_obj();
+        ImGui::SameLine();
+        if (ImGui::Button("Export .ply")) export_to_ply();
         if (ImGui::Button("Delete Surface")) delete_surface();
         ImGui::SameLine();
         if (settings.interact_mode != InteractMode::Brush) {
@@ -459,6 +463,28 @@ void Application::init_surface_from_obj() {
         ImGui::OpenPopup("Error");
     }
 }
+void Application::export_to_obj() {
+    nfdchar_t *out_path = nullptr;
+    nfdresult_t result = NFD_SaveDialog("obj", "export.obj", &out_path);
+    if (result == NFD_CANCEL || result == NFD_ERROR) return;
+    try {
+        surface->export_to_obj(out_path, settings.vertex_extrusion);
+    } catch (std::runtime_error& e) {
+        settings.error_message = e.what();
+        ImGui::OpenPopup("Error");
+    }
+}
+void Application::export_to_ply() {
+    nfdchar_t *out_path = nullptr;
+    nfdresult_t result = NFD_SaveDialog("ply", "export.ply", &out_path);
+    if (result == NFD_CANCEL || result == NFD_ERROR) return;
+    try {
+        surface->export_to_ply(out_path, settings.vertex_extrusion);
+    } catch (std::runtime_error& e) {
+        settings.error_message = e.what();
+        ImGui::OpenPopup("Error");
+    }
+}
 void Application::switch_solver(SolverType new_solver) {
     bool valid_new_solver = false;
 
@@ -550,14 +576,6 @@ void Application::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
 glm::vec3 Application::get_world_ray_from_mouse() {
     double x_pos, y_pos;
     glfwGetCursorPos(window, &x_pos, &y_pos);
-    
-    // Get the content scale (DPI scaling factor)
-    float x_scale, y_scale;
-    glfwGetWindowContentScale(window, &x_scale, &y_scale);
-    
-    // Apply DPI scaling
-    x_pos *= x_scale;
-    y_pos *= y_scale;
     
     if (gui_visible) x_pos -= gui_width;
 

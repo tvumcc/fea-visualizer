@@ -44,6 +44,8 @@ public:
 
     void init_from_PSLG(PSLG& pslg);
     void init_from_obj(const char* file_path);
+    void export_to_obj(const char* file_path, float vertex_extrusion = 0.25f);
+    void export_to_ply(const char* file_path, float vertex_extrusion = 0.25f);
 
     void draw(bool wireframe);
     void clear();

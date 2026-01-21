@@ -126,6 +126,8 @@ public:
     void delete_surface();
     void init_surface_from_pslg();
     void init_surface_from_obj();
+    void export_to_obj();
+    void export_to_ply();
     void switch_solver(SolverType new_solver);
     void switch_color_map(const char* new_color_map);
     void switch_mode(InteractMode mode);

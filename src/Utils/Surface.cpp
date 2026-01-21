@@ -4,10 +4,10 @@
 #include <tinyobjloader/tiny_obj_loader.h>
 
 #include "Utils/Surface.hpp"
-#include "Utils/BVH.hpp"
+#include "Utils/ColorMap.hpp"
 
-#include <iostream>
 #include <unordered_map>
+#include <fstream>
 #include <format>
 #include <filesystem>
 
@@ -48,7 +48,7 @@ void Surface::init_from_PSLG(PSLG& pslg) {
  * Initialize this surface with a .obj file.
  * The surface will then become either open or closed depending on the geometry of the mesh. 
  * 
- * @param file_path The path to the .obj file with which to initalize the surface.
+ * @param file_path The path to the .obj file with which to initialize the surface.
  */
 void Surface::init_from_obj(const char* file_path) {
     if (!std::filesystem::exists(file_path))
@@ -127,6 +127,110 @@ void Surface::init_from_obj(const char* file_path) {
     initialized = true;
     load_buffers(); 
 }
+
+/**
+ * Export the vertex positions of this surface to a .obj file
+ */
+void Surface::export_to_obj(const char* file_path, float vertex_extrusion) {
+    std::ofstream of(file_path);
+
+    for (int i = 0; i < vertices.size(); i++) {
+        glm::vec3 v = values[i] * std::max(0.0f, vertex_extrusion) * normals[i] + vertices[i];
+        glm::vec3 color = color_map->get_color(values[i]);
+        of << std::format("v {} {} {} {} {} {}\n", v.x, v.y, v.z, color.r, color.g, color.b);
+    }
+    
+    std::vector<glm::vec3> recalculated_normals(normals.size(), glm::vec3(0.0f));
+    
+    for (Triangle triangle : triangles) {
+        int a = triangle.idx_a;
+        int b = triangle.idx_b;
+        int c = triangle.idx_c;
+        
+        glm::vec3 vertex_a = values[a] * std::max(0.0f, vertex_extrusion) * normals[a] + vertices[a];
+        glm::vec3 vertex_b = values[b] * std::max(0.0f, vertex_extrusion) * normals[b] + vertices[b];
+        glm::vec3 vertex_c = values[c] * std::max(0.0f, vertex_extrusion) * normals[c] + vertices[c];
+        
+        glm::vec3 normal = glm::normalize(glm::cross(vertex_a - vertex_b, vertex_a - vertex_c));
+        
+        recalculated_normals[a] += normal;
+        recalculated_normals[b] += normal;
+        recalculated_normals[c] += normal;
+    }
+    
+    for (int i = 0; i < recalculated_normals.size(); i++) {
+        glm::vec3 normal = glm::normalize(recalculated_normals[i]);
+        of << std::format("vn {} {} {}\n", normal.x, normal.y, normal.z);
+    }
+    
+    for (Triangle triangle : triangles) {
+        of << std::format("f {}//{} {}//{} {}//{}\n",
+            triangle[0]+1, triangle[0]+1,
+            triangle[1]+1, triangle[1]+1,
+            triangle[2]+1, triangle[2]+1
+        );
+    }
+
+    of.close();
+}
+
+/**
+ * Export the vertex positions of this surface to a .ply file
+ */
+void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
+    std::ofstream of(file_path);
+    of << "ply\n";
+    of << "format ascii 1.0\n";
+    of << std::format("element vertex {}\n", vertices.size());
+    of << "property float x\n";
+    of << "property float y\n";
+    of << "property float z\n";
+    of << "property float nx\n";
+    of << "property float ny\n";
+    of << "property float nz\n";
+    of << "property float red\n";
+    of << "property float green\n";
+    of << "property float blue\n";
+    of << std::format("element face {}\n", triangles.size());
+    of << "property list uchar uint vertex_indices\n";
+    of << "end_header\n";
+    
+    std::vector<glm::vec3> recalculated_normals(normals.size(), glm::vec3(0.0f));
+    
+    for (Triangle triangle : triangles) {
+        int a = triangle.idx_a;
+        int b = triangle.idx_b;
+        int c = triangle.idx_c;
+        
+        glm::vec3 vertex_a = values[a] * std::max(0.0f, vertex_extrusion) * normals[a] + vertices[a];
+        glm::vec3 vertex_b = values[b] * std::max(0.0f, vertex_extrusion) * normals[b] + vertices[b];
+        glm::vec3 vertex_c = values[c] * std::max(0.0f, vertex_extrusion) * normals[c] + vertices[c];
+        
+        glm::vec3 normal = glm::normalize(glm::cross(vertex_a - vertex_b, vertex_a - vertex_c));
+        
+        recalculated_normals[a] += normal;
+        recalculated_normals[b] += normal;
+        recalculated_normals[c] += normal;
+    }
+    
+    for (int i = 0; i < vertices.size(); i++) {
+        glm::vec3 position = values[i] * std::max(0.0f, vertex_extrusion) * normals[i] + vertices[i];
+        glm::vec3 normal = glm::normalize(recalculated_normals[i]);
+        glm::vec3 color = color_map->get_color(values[i]);
+        of << std::format("{} {} {} {} {} {} {} {} {}\n", 
+            position.x, position.y, position.z, 
+            normal.x, normal.y, normal.z,
+            color.r, color.g, color.b
+        );
+    }
+    
+    for (Triangle triangle : triangles) {
+        of << std::format("3 {} {} {}\n", triangle.idx_a, triangle.idx_b, triangle.idx_c);
+    }
+
+    of.close();
+}
+
 
 /**
  * Renders this surface to the screen.
