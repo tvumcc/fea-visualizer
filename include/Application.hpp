@@ -4,16 +4,16 @@
 #include <GLFW/glfw3.h>
 #include <stb/stb_image.h>
 
-#include "Mesh.hpp"
-#include "Shader.hpp"
-#include "Camera.hpp"
-#include "GridInterface.hpp"
-#include "PSLG.hpp"
-#include "Surface.hpp"
-#include "ColorMap.hpp"
-#include "Solver.hpp"
-#include "ResourceManager.hpp"
-#include "BVH.hpp"
+#include "Utils/Mesh.hpp"
+#include "Utils/Shader.hpp"
+#include "Utils/Camera.hpp"
+#include "Utils/GridInterface.hpp"
+#include "Utils/PSLG.hpp"
+#include "Utils/Surface.hpp"
+#include "Utils/ColorMap.hpp"
+#include "Solvers/Solver.hpp"
+#include "Utils/ResourceManager.hpp"
+#include "Utils/BVH.hpp"
 
 #include <memory>
 

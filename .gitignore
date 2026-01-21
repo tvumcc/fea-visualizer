@@ -1,6 +1,8 @@
 build/
+cmake-build-debug/
+cmake-build-release/
+.idea/
 .cache/
 .vscode/
-run.bat
-build.bat
+.clangd
 run

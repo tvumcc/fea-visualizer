@@ -5,10 +5,11 @@
 #include <nfd.h>
 
 #include "Application.hpp"
-#include "HeatSolver.hpp"
-#include "WaveSolver.hpp"
-#include "AdvectionDiffusionSolver.hpp"
-#include "ReactionDiffusionSolver.hpp"
+#include "GLFW/glfw3.h"
+#include "Solvers/HeatSolver.hpp"
+#include "Solvers/WaveSolver.hpp"
+#include "Solvers/AdvectionDiffusionSolver.hpp"
+#include "Solvers/ReactionDiffusionSolver.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -369,7 +370,8 @@ void Application::run() {
         const ImGuiViewport *main_viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y));
         ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
-        ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+        if (gui_visible)
+            ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
 
         if (settings.interact_mode == InteractMode::DrawPSLG)
             pslg->set_pending_point(get_mouse_to_grid_plane_point());
@@ -386,7 +388,7 @@ void Application::run() {
             }
         }
 
-        if (ImGui::BeginPopupModal("Error", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+        if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
             ImGui::Text(settings.error_message.c_str());
             if (ImGui::Button("Close"))
                 ImGui::CloseCurrentPopup();
@@ -396,7 +398,8 @@ void Application::run() {
         if (gui_visible)
             render_gui();
         render();
-        ImGui::End();
+        if (gui_visible)
+            ImGui::End();
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -442,8 +445,8 @@ void Application::init_surface_from_obj() {
     clear_pslg();
     delete_surface(); 
 
-    nfdchar_t *out_path = NULL;		
-    nfdresult_t result = NFD_OpenDialog(NULL, NULL, &out_path);
+    nfdchar_t *out_path = nullptr;
+    nfdresult_t result = NFD_OpenDialog(nullptr, nullptr, &out_path);
     if (result == NFD_CANCEL || result == NFD_ERROR || !std::filesystem::exists(out_path)) return;
     try {
         surface->init_from_obj(out_path);
@@ -590,9 +593,9 @@ void Application::init_opengl_window(unsigned int window_width, unsigned int win
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SAMPLES, 4);
 
-    window = glfwCreateWindow(window_width, window_height, "Finite Element Visualizer", NULL, NULL);
+    window = glfwCreateWindow(window_width, window_height, "Finite Element Visualizer", nullptr, nullptr);
 	glfwMakeContextCurrent(window);
-	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+	gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress));
     glfwSetWindowUserPointer(window, this);
     set_glfw_callbacks();
 
@@ -617,7 +620,7 @@ void Application::init_imgui(const char* font_path, int font_size) {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
-	io.IniFilename = NULL;
+	io.IniFilename = nullptr;
     io.Fonts->AddFontFromFileTTF(font_path, font_size);
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -625,23 +628,29 @@ void Application::init_imgui(const char* font_path, int font_size) {
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-    Application* app = (Application*)glfwGetWindowUserPointer(window);
+    Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
 	app->window_width = width;
 	app->window_height = height;
+	
+	float x_scale, y_scale;
+	glfwGetWindowContentScale(window, &x_scale, &y_scale);
 
     if (app->gui_visible) {
-        glViewport(app->gui_width, 0, width - app->gui_width, height);
+        glViewport(app->gui_width * x_scale, 0, (width - app->gui_width) * x_scale, height * y_scale);
         app->camera->set_aspect_ratio((float)(width - app->gui_width) / height);
     } else {
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, width * x_scale, height * y_scale);
         app->camera->set_aspect_ratio((float)width / height);
     }
 }
 void cursor_pos_callback(GLFWwindow* window, double x, double y) {
-    Application* app = (Application*)glfwGetWindowUserPointer(window); 
+    Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    
+    float x_scale, y_scale;
+	glfwGetWindowContentScale(window, &x_scale, &y_scale);
 
-	static float last_x = (float)app->window_width / 2.0;
-	static float last_y = (float)app->window_height / 2.0;
+	static float last_x = (float)(app->window_width * x_scale) / 2.0;
+	static float last_y = (float)(app->window_height * y_scale) / 2.0;
 	static bool first_mouse = true;
 
 	if (first_mouse) {
@@ -666,7 +675,7 @@ void cursor_pos_callback(GLFWwindow* window, double x, double y) {
     }
 }
 void scroll_callback(GLFWwindow* window, double dx, double dy) {
-    Application* app = (Application*)glfwGetWindowUserPointer(window); 
+    Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
 
     if (!ImGui::GetIO().WantCaptureMouse) {
         app->camera->zoom(dy);
@@ -674,7 +683,7 @@ void scroll_callback(GLFWwindow* window, double dx, double dy) {
     }
 }
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    Application* app = (Application*)glfwGetWindowUserPointer(window); 
+    Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
 
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);

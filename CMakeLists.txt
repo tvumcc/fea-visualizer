@@ -103,6 +103,8 @@ if(APPLE)
     )
 endif()
 
+SET(CMAKE_CXX_FLAGS "-fpermissive")
+
 # For Windows and Linux, copy resources next to the executable
 if(WIN32 OR (UNIX AND NOT APPLE))
     add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
