@@ -2,6 +2,8 @@
 #include <triangle/triangle.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <tinyobjloader/tiny_obj_loader.h>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
 
 #include "Utils/Surface.hpp"
 #include "Utils/ColorMap.hpp"
@@ -10,6 +12,7 @@
 #include <fstream>
 #include <format>
 #include <filesystem>
+#include <iostream>
 
 // This define is needed so that triangle (the triangulation library this project uses) will function as a library that is callable from code.
 #define TRI_LIBRARY
@@ -179,54 +182,115 @@ void Surface::export_to_obj(const char* file_path, float vertex_extrusion) {
  */
 void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
     std::ofstream of(file_path);
-    of << "ply\n";
-    of << "format ascii 1.0\n";
-    of << std::format("element vertex {}\n", vertices.size());
-    of << "property float x\n";
-    of << "property float y\n";
-    of << "property float z\n";
-    of << "property float nx\n";
-    of << "property float ny\n";
-    of << "property float nz\n";
-    of << "property float red\n";
-    of << "property float green\n";
-    of << "property float blue\n";
-    of << std::format("element face {}\n", triangles.size());
-    of << "property list uchar uint vertex_indices\n";
-    of << "end_header\n";
-    
-    std::vector<glm::vec3> recalculated_normals(normals.size(), glm::vec3(0.0f));
-    
+
+    float threshold = 0.1f;
+
+    std::vector<int> cases;
+    std::vector<glm::vec3> clipped_positions;
+    std::vector<float> clipped_values;
+    std::unordered_map<glm::vec3, int, std::hash<glm::vec3>> clipped_position_map;
+    std::vector<Triangle> clipped_triangles;
+
     for (Triangle triangle : triangles) {
         int a = triangle.idx_a;
         int b = triangle.idx_b;
         int c = triangle.idx_c;
+
+        bool a_above = (values[a] - threshold) > 1e-4;
+        bool b_above = (values[b] - threshold) > 1e-4;
+        bool c_above = (values[c] - threshold) > 1e-4;
+        int count = a_above + b_above + c_above;
         
-        glm::vec3 vertex_a = values[a] * std::max(0.0f, vertex_extrusion) * normals[a] + vertices[a];
-        glm::vec3 vertex_b = values[b] * std::max(0.0f, vertex_extrusion) * normals[b] + vertices[b];
-        glm::vec3 vertex_c = values[c] * std::max(0.0f, vertex_extrusion) * normals[c] + vertices[c];
-        
-        glm::vec3 normal = glm::normalize(glm::cross(vertex_a - vertex_b, vertex_a - vertex_c));
-        
-        recalculated_normals[a] += normal;
-        recalculated_normals[b] += normal;
-        recalculated_normals[c] += normal;
+        auto add_clipped_position = [&](glm::vec3 vec, float value) {
+            if (!clipped_position_map.contains(vec)) {
+                clipped_position_map[vec] = clipped_positions.size();
+                clipped_positions.push_back(vec);
+                clipped_values.push_back(value);
+            }
+        };
+
+        auto extruded_vertex = [&](int idx){
+            return values[idx] * std::max(0.0f, vertex_extrusion) * normals[idx] + vertices[idx];
+        };
+
+        switch (count) {
+            case 1: {
+                // The one local index (0, 1, or 2) of the one vertex that is above the discard threshold
+                int above_idx = a_above ? 0 : b_above ? 1 : 2;
+                Triangle clipped_triangle;
+                    
+                // TODO: check for div by 0 in glm::mix
+                for (int i = 0; i < 3; i++) {
+                    glm::vec3 position = i != above_idx
+                        ? glm::mix(extruded_vertex(triangle[i]), extruded_vertex(triangle[above_idx]), (threshold - values[triangle[i]]) / (values[triangle[above_idx]] - values[triangle[i]]))
+                        : extruded_vertex(triangle[i]);
+                    float value = i != above_idx ? threshold : values[triangle[above_idx]];
+
+                    add_clipped_position(position, value);
+                    clipped_triangle[i] = clipped_position_map[position];
+                }
+                
+                clipped_triangles.push_back(clipped_triangle);
+            } break;
+            case 2: {
+                // These are the local indices (0, 1, or 2) of the two vertices that are above the discard threshold, ordered by winding order
+                int above_idx_1 = a_above ? 0 : 1;
+                int above_idx_2 = a_above && b_above ? 1 : 2;
+                int below_idx = 3 - (above_idx_1 + above_idx_2);
+                
+                // TODO: check for div by 0 in glm::mix
+                glm::vec3 above_pos_1 = extruded_vertex(triangle[above_idx_1]);
+                glm::vec3 above_pos_2 = extruded_vertex(triangle[above_idx_2]);
+                glm::vec3 between_pos_1 = glm::mix(extruded_vertex(triangle[below_idx]), above_pos_1, (threshold - values[triangle[below_idx]]) / (values[triangle[above_idx_1]] - values[triangle[below_idx]]));
+                glm::vec3 between_pos_2 = glm::mix(extruded_vertex(triangle[below_idx]), above_pos_2, (threshold - values[triangle[below_idx]]) / (values[triangle[above_idx_2]] - values[triangle[below_idx]]));
+                
+                add_clipped_position(above_pos_1, values[triangle[above_idx_1]]);
+                add_clipped_position(above_pos_2, values[triangle[above_idx_2]]);
+                add_clipped_position(between_pos_1, threshold);
+                add_clipped_position(between_pos_2, threshold);
+                
+                clipped_triangles.emplace_back(clipped_position_map[between_pos_1], clipped_position_map[above_pos_1], clipped_position_map[between_pos_2]);
+                clipped_triangles.emplace_back(clipped_position_map[between_pos_2], clipped_position_map[above_pos_1], clipped_position_map[above_pos_2]);
+            } break;
+            case 3: {
+                Triangle clipped_triangle;
+                for (int i = 0; i < 3; i++) {
+                    glm::vec3 position = extruded_vertex(triangle[i]);
+                    add_clipped_position(position, values[triangle[i]]);
+                    clipped_triangle[i] = clipped_position_map[position];
+                }
+                clipped_triangles.push_back(clipped_triangle);
+            } break;
+        }
     }
-    
-    for (int i = 0; i < vertices.size(); i++) {
-        glm::vec3 position = values[i] * std::max(0.0f, vertex_extrusion) * normals[i] + vertices[i];
-        glm::vec3 normal = glm::normalize(recalculated_normals[i]);
-        glm::vec3 color = color_map->get_color(values[i]);
-        of << std::format("{} {} {} {} {} {} {} {} {}\n", 
-            position.x, position.y, position.z, 
-            normal.x, normal.y, normal.z,
+
+    of << "ply\n";
+    of << "format ascii 1.0\n";
+    of << std::format("element vertex {}\n", clipped_positions.size());
+    of << "property float x\n";
+    of << "property float y\n";
+    of << "property float z\n";
+    of << "property float red\n";
+    of << "property float green\n";
+    of << "property float blue\n";
+    of << std::format("element face {}\n", clipped_triangles.size());
+    of << "property list uchar uint vertex_indices\n";
+    of << "end_header\n";
+
+    for (int i = 0; i < clipped_positions.size(); i++) {
+        glm::vec3 position = clipped_positions[i];
+        glm::vec3 color = color_map->get_color(clipped_values[i]);
+        of << std::format("{} {} {} {} {} {}\n",
+            position.x, position.y, position.z,
             color.r, color.g, color.b
         );
     }
-    
-    for (Triangle triangle : triangles) {
+
+    for (Triangle triangle : clipped_triangles) {
         of << std::format("3 {} {} {}\n", triangle.idx_a, triangle.idx_b, triangle.idx_c);
     }
+
+    std::cout << "Finished writing to file\n";
 
     of.close();
 }
@@ -333,7 +397,7 @@ void Surface::load_value_buffer() {
  * Triangulate a PSLG defined by buffers of data.
  * 
  * @param vertices The flattened vertex data as a raw pointer. Every 3 doubles define a 3D position.
- * @param num_vertcies The number of vertices. This is the number of elements in vertices divided by 3.
+ * @param num_vertices The number of vertices. This is the number of elements in vertices divided by 3.
  * @param segments The flattened line data as a raw pointer. Every pair of integers define a line by indexing 2 vertices.
  * @param num_segments The number of segments. The is the number of elements in segments divided by 2.
  * @param holes The flattened hole data as a raw pointer. Every 3 double define a 3D position that denote a closed region as a hole.

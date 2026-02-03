@@ -12,7 +12,7 @@ struct Triangle {
     unsigned int idx_a;
     unsigned int idx_b;
     unsigned int idx_c;
-
+    
     unsigned int& operator[](int idx) {
         switch (idx) {
             case 0: return idx_a;
