@@ -184,6 +184,9 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
     std::ofstream of(file_path);
 
     float threshold = 0.1f;
+    
+    bool mirror = false;
+    bool project_down = true;
 
     std::vector<int> cases;
     std::vector<glm::vec3> clipped_positions;
@@ -231,6 +234,22 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
                 }
                 
                 clipped_triangles.push_back(clipped_triangle);
+                
+                if (mirror) {
+                    
+                } else if (project_down) {
+                    Triangle projected;
+                    for (int i = 0; i < 3; i++) {
+                        if (i != above_idx) {
+                            projected[i] = clipped_triangle[i];
+                        } else {
+                            glm::vec3 new_pos = (threshold * vertex_extrusion) * normals[triangle[i]] + vertices[triangle[i]];
+                            add_clipped_position(new_pos, threshold);
+                            projected[i] = clipped_position_map[new_pos];
+                        }
+                    }
+                    clipped_triangles.push_back(projected);
+                }
             } break;
             case 2: {
                 // These are the local indices (0, 1, or 2) of the two vertices that are above the discard threshold, ordered by winding order
@@ -251,6 +270,17 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
                 
                 clipped_triangles.emplace_back(clipped_position_map[between_pos_1], clipped_position_map[above_pos_1], clipped_position_map[between_pos_2]);
                 clipped_triangles.emplace_back(clipped_position_map[between_pos_2], clipped_position_map[above_pos_1], clipped_position_map[above_pos_2]);
+                
+                if (mirror) {
+                    
+                } else if (project_down) {
+                    glm::vec3 above_pos_1_projected = (threshold * vertex_extrusion) * normals[triangle[above_idx_1]] + vertices[triangle[above_idx_1]];
+                    glm::vec3 above_pos_2_projected = (threshold * vertex_extrusion) * normals[triangle[above_idx_2]] + vertices[triangle[above_idx_2]];
+                    add_clipped_position(above_pos_1_projected, threshold);
+                    add_clipped_position(above_pos_2_projected, threshold);
+                    clipped_triangles.emplace_back(clipped_position_map[between_pos_1], clipped_position_map[above_pos_1_projected], clipped_position_map[between_pos_2]);
+                    clipped_triangles.emplace_back(clipped_position_map[between_pos_2], clipped_position_map[above_pos_1_projected], clipped_position_map[above_pos_2_projected]);
+                }
             } break;
             case 3: {
                 Triangle clipped_triangle;
@@ -260,6 +290,18 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
                     clipped_triangle[i] = clipped_position_map[position];
                 }
                 clipped_triangles.push_back(clipped_triangle);
+                
+                if (mirror) {
+                    
+                } else if (project_down) {
+                    Triangle projected;
+                    for (int i = 0; i < 3; i++) {
+                        glm::vec3 new_pos = (threshold * vertex_extrusion) * normals[triangle[i]] + vertices[triangle[i]];
+                        add_clipped_position(new_pos, threshold);
+                        projected[i] = clipped_position_map[new_pos];
+                    }
+                    clipped_triangles.push_back(projected);
+                }
             } break;
         }
     }
