@@ -578,10 +578,15 @@ void Application::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
 glm::vec3 Application::get_world_ray_from_mouse() {
     double x_pos, y_pos;
     glfwGetCursorPos(window, &x_pos, &y_pos);
-    
+
     if (gui_visible) x_pos -= gui_width;
 
-    glm::vec3 nds_ray = glm::vec3((2.0f * x_pos) / (window_width - (gui_visible ? gui_width : 0)) - 1.0f, 1.0f - (2.0f * y_pos) / window_height, 1.0f);
+    float x_scale, y_scale;
+    glfwGetWindowContentScale(window, &x_scale, &y_scale);
+    x_pos *= x_scale;
+    y_pos *= y_scale;
+
+    glm::vec3 nds_ray = glm::vec3((2.0f * x_pos) / (window_width - (gui_visible ? gui_width * x_scale : 0)) - 1.0f, 1.0f - (2.0f * y_pos) / window_height, 1.0f);
     glm::vec4 clip_ray = glm::vec4(nds_ray.x, nds_ray.y, -1.0f, 1.0f);
     glm::vec4 eye_ray = glm::inverse(camera->get_projection_matrix()) * clip_ray;
     eye_ray = glm::vec4(eye_ray.x, eye_ray.y, -1.0, 0.0f);
@@ -628,6 +633,11 @@ void Application::init_opengl_window(unsigned int window_width, unsigned int win
         images[0].height = height;
         glfwSetWindowIcon(window, 1, images);
     }
+
+    float x_scale, y_scale;
+    glfwGetWindowContentScale(window, &x_scale, &y_scale);
+    this->window_width *= x_scale;
+    this->window_height *= y_scale;
 }
 void Application::set_glfw_callbacks() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -649,28 +659,26 @@ void Application::init_imgui(const char* font_path, int font_size) {
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-	app->window_width = width;
-	app->window_height = height;
 	
 	float x_scale, y_scale;
 	glfwGetWindowContentScale(window, &x_scale, &y_scale);
 
+	app->window_width = width;
+	app->window_height = height;
+
     if (app->gui_visible) {
-        glViewport(app->gui_width * x_scale, 0, (width - app->gui_width) * x_scale, height * y_scale);
-        app->camera->set_aspect_ratio((float)(width - app->gui_width) / height);
+        glViewport(app->gui_width * x_scale, 0, (width - app->gui_width * x_scale), height);
+        app->camera->set_aspect_ratio((float)(width - app->gui_width) / (height));
     } else {
-        glViewport(0, 0, width * x_scale, height * y_scale);
+        glViewport(0, 0, width, height);
         app->camera->set_aspect_ratio((float)width / height);
     }
 }
 void cursor_pos_callback(GLFWwindow* window, double x, double y) {
     Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
     
-    float x_scale, y_scale;
-	glfwGetWindowContentScale(window, &x_scale, &y_scale);
-
-	static float last_x = (float)(app->window_width * x_scale) / 2.0;
-	static float last_y = (float)(app->window_height * y_scale) / 2.0;
+	static float last_x = (float)(app->window_width) / 2.0;
+	static float last_y = (float)(app->window_height) / 2.0;
 	static bool first_mouse = true;
 
 	if (first_mouse) {
