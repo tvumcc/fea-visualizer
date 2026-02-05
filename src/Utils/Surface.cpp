@@ -20,7 +20,7 @@
  * Initialize this surface with a PSLG via triangulation.
  * This will automatically cause the PSLG to become open.
  * 
- * @param pslg The PSLG to intialize this surface with.
+ * @param pslg The PSLG to initialize this surface with.
  */
 void Surface::init_from_PSLG(PSLG& pslg) {
     if (pslg.closed()) {
@@ -131,76 +131,24 @@ void Surface::init_from_obj(const char* file_path) {
 }
 
 /**
- * Export the vertex positions of this surface to a .obj file
- */
-void Surface::export_to_obj(const char* file_path, float vertex_extrusion) {
-    std::ofstream of(file_path);
-
-    for (int i = 0; i < vertices.size(); i++) {
-        glm::vec3 v = values[i] * std::max(0.0f, vertex_extrusion) * normals[i] + vertices[i];
-        glm::vec3 color = color_map->get_color(values[i]);
-        of << std::format("v {} {} {} {} {} {}\n", v.x, v.y, v.z, color.r, color.g, color.b);
-    }
-    
-    std::vector<glm::vec3> recalculated_normals(normals.size(), glm::vec3(0.0f));
-    
-    for (Triangle triangle : triangles) {
-        int a = triangle.idx_a;
-        int b = triangle.idx_b;
-        int c = triangle.idx_c;
-        
-        glm::vec3 vertex_a = values[a] * std::max(0.0f, vertex_extrusion) * normals[a] + vertices[a];
-        glm::vec3 vertex_b = values[b] * std::max(0.0f, vertex_extrusion) * normals[b] + vertices[b];
-        glm::vec3 vertex_c = values[c] * std::max(0.0f, vertex_extrusion) * normals[c] + vertices[c];
-        
-        glm::vec3 normal = glm::normalize(glm::cross(vertex_a - vertex_b, vertex_a - vertex_c));
-        
-        recalculated_normals[a] += normal;
-        recalculated_normals[b] += normal;
-        recalculated_normals[c] += normal;
-    }
-    
-    for (int i = 0; i < recalculated_normals.size(); i++) {
-        glm::vec3 normal = glm::normalize(recalculated_normals[i]);
-        of << std::format("vn {} {} {}\n", normal.x, normal.y, normal.z);
-    }
-    
-    for (Triangle triangle : triangles) {
-        of << std::format("f {}//{} {}//{} {}//{}\n",
-            triangle[0]+1, triangle[0]+1,
-            triangle[1]+1, triangle[1]+1,
-            triangle[2]+1, triangle[2]+1
-        );
-    }
-
-    of.close();
-}
-
-/**
  * Export the vertex positions of this surface to a .ply file
  */
-void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
+void Surface::export_to_ply(const char* file_path, float vertex_extrusion, float threshold, MeshType mesh_type) {
     std::ofstream of(file_path);
 
-    float threshold = 0.1f;
-    
-    bool mirror = true;
-    bool project_down = false;
-
-    std::vector<int> cases;
     std::vector<glm::vec3> clipped_positions;
     std::vector<float> clipped_values;
-    std::unordered_map<glm::vec3, int, std::hash<glm::vec3>> clipped_position_map;
     std::vector<Triangle> clipped_triangles;
+    std::unordered_map<glm::vec3, int, std::hash<glm::vec3>> clipped_position_map;
 
     for (Triangle triangle : triangles) {
         int a = triangle.idx_a;
         int b = triangle.idx_b;
         int c = triangle.idx_c;
 
-        bool a_above = (values[a] - threshold) > 1e-4;
-        bool b_above = (values[b] - threshold) > 1e-4;
-        bool c_above = (values[c] - threshold) > 1e-4;
+        bool a_above = (values[a] - threshold) >= 1e-9;
+        bool b_above = (values[b] - threshold) >= 1e-9;
+        bool c_above = (values[c] - threshold) >= 1e-9;
         int count = a_above + b_above + c_above;
         
         auto add_clipped_position = [&](glm::vec3 vec, float value) {
@@ -221,7 +169,6 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
                 int above_idx = a_above ? 0 : b_above ? 1 : 2;
                 Triangle clipped_triangle;
                     
-                // TODO: check for div by 0 in glm::mix
                 for (int i = 0; i < 3; i++) {
                     glm::vec3 position = i != above_idx
                         ? glm::mix(extruded_vertex(triangle[i]), extruded_vertex(triangle[above_idx]), (threshold - values[triangle[i]]) / (values[triangle[above_idx]] - values[triangle[i]]))
@@ -234,25 +181,14 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
                 
                 clipped_triangles.push_back(clipped_triangle);
                 
-                if (mirror) {
+                if (mesh_type != MeshType::Open) {
                     Triangle projected;
                     for (int i = 0; i < 3; i++) {
                         if (i != above_idx) {
                             projected[i] = clipped_triangle[i];
                         } else {
-                            glm::vec3 new_pos = (threshold - values[triangle[i]] * vertex_extrusion) * normals[triangle[i]] + vertices[triangle[i]];
-                            add_clipped_position(new_pos, values[triangle[i]]);
-                            projected[i] = clipped_position_map[new_pos];
-                        }
-                    }
-                    clipped_triangles.push_back(projected);
-                } else if (project_down) {
-                    Triangle projected;
-                    for (int i = 0; i < 3; i++) {
-                        if (i != above_idx) {
-                            projected[i] = clipped_triangle[i];
-                        } else {
-                            glm::vec3 new_pos = (threshold * vertex_extrusion) * normals[triangle[i]] + vertices[triangle[i]];
+                            float new_pos_scale = (mesh_type == MeshType::Mirrored ? (threshold - values[triangle[i]] * vertex_extrusion) : (threshold * vertex_extrusion));
+                            glm::vec3 new_pos = new_pos_scale * normals[triangle[i]] + vertices[triangle[i]];
                             add_clipped_position(new_pos, threshold);
                             projected[i] = clipped_position_map[new_pos];
                         }
@@ -266,7 +202,6 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
                 int above_idx_2 = a_above && b_above ? 1 : 2;
                 int below_idx = 3 - (above_idx_1 + above_idx_2);
                 
-                // TODO: check for div by 0 in glm::mix
                 glm::vec3 above_pos_1 = extruded_vertex(triangle[above_idx_1]);
                 glm::vec3 above_pos_2 = extruded_vertex(triangle[above_idx_2]);
                 glm::vec3 between_pos_1 = glm::mix(extruded_vertex(triangle[below_idx]), above_pos_1, (threshold - values[triangle[below_idx]]) / (values[triangle[above_idx_1]] - values[triangle[below_idx]]));
@@ -280,19 +215,18 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
                 clipped_triangles.emplace_back(clipped_position_map[between_pos_1], clipped_position_map[above_pos_1], clipped_position_map[between_pos_2]);
                 clipped_triangles.emplace_back(clipped_position_map[between_pos_2], clipped_position_map[above_pos_1], clipped_position_map[above_pos_2]);
                 
-                if (mirror) {
-                    glm::vec3 above_pos_1_projected = (threshold - values[triangle[above_idx_1]] * vertex_extrusion) * normals[triangle[above_idx_1]] + vertices[triangle[above_idx_1]];
-                    glm::vec3 above_pos_2_projected = (threshold - values[triangle[above_idx_2]] * vertex_extrusion) * normals[triangle[above_idx_2]] + vertices[triangle[above_idx_2]];
+                if (mesh_type != MeshType::Open) {
+                    glm::vec3 above_pos_1_projected, above_pos_2_projected;
+                    if (mesh_type == MeshType::Mirrored) {
+                        above_pos_1_projected = (threshold - values[triangle[above_idx_1]] * vertex_extrusion) * normals[triangle[above_idx_1]] + vertices[triangle[above_idx_1]];
+                        above_pos_2_projected = (threshold - values[triangle[above_idx_2]] * vertex_extrusion) * normals[triangle[above_idx_2]] + vertices[triangle[above_idx_2]];
+                    } else {
+                        above_pos_1_projected = (threshold * vertex_extrusion) * normals[triangle[above_idx_1]] + vertices[triangle[above_idx_1]];
+                        above_pos_2_projected = (threshold * vertex_extrusion) * normals[triangle[above_idx_2]] + vertices[triangle[above_idx_2]];
+                    }
+                    
                     add_clipped_position(above_pos_1_projected, values[triangle[above_idx_1]]);
                     add_clipped_position(above_pos_2_projected, values[triangle[above_idx_2]]);
-                    clipped_triangles.emplace_back(clipped_position_map[between_pos_1], clipped_position_map[above_pos_1_projected], clipped_position_map[between_pos_2]);
-                    clipped_triangles.emplace_back(clipped_position_map[between_pos_2], clipped_position_map[above_pos_1_projected], clipped_position_map[above_pos_2_projected]);
-                    
-                } else if (project_down) {
-                    glm::vec3 above_pos_1_projected = (threshold * vertex_extrusion) * normals[triangle[above_idx_1]] + vertices[triangle[above_idx_1]];
-                    glm::vec3 above_pos_2_projected = (threshold * vertex_extrusion) * normals[triangle[above_idx_2]] + vertices[triangle[above_idx_2]];
-                    add_clipped_position(above_pos_1_projected, threshold);
-                    add_clipped_position(above_pos_2_projected, threshold);
                     clipped_triangles.emplace_back(clipped_position_map[between_pos_1], clipped_position_map[above_pos_1_projected], clipped_position_map[between_pos_2]);
                     clipped_triangles.emplace_back(clipped_position_map[between_pos_2], clipped_position_map[above_pos_1_projected], clipped_position_map[above_pos_2_projected]);
                 }
@@ -306,18 +240,11 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
                 }
                 clipped_triangles.push_back(clipped_triangle);
                 
-                if (mirror) {
+                if (mesh_type != MeshType::Open) {
                     Triangle projected;
                     for (int i = 0; i < 3; i++) {
-                        glm::vec3 new_pos = (threshold - values[triangle[i]] * vertex_extrusion) * normals[triangle[i]] + vertices[triangle[i]];
-                        add_clipped_position(new_pos, values[triangle[i]]);
-                        projected[i] = clipped_position_map[new_pos];
-                    }
-                    clipped_triangles.push_back(projected);
-                } else if (project_down) {
-                    Triangle projected;
-                    for (int i = 0; i < 3; i++) {
-                        glm::vec3 new_pos = (threshold * vertex_extrusion) * normals[triangle[i]] + vertices[triangle[i]];
+                        float new_pos_scale = (mesh_type == MeshType::Mirrored ? (threshold - values[triangle[i]] * vertex_extrusion) : (threshold * vertex_extrusion));
+                        glm::vec3 new_pos = new_pos_scale * normals[triangle[i]] + vertices[triangle[i]];
                         add_clipped_position(new_pos, threshold);
                         projected[i] = clipped_position_map[new_pos];
                     }
@@ -349,12 +276,9 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion) {
         );
     }
 
-    for (Triangle triangle : clipped_triangles) {
+    for (Triangle triangle : clipped_triangles) 
         of << std::format("3 {} {} {}\n", triangle.idx_a, triangle.idx_b, triangle.idx_c);
-    }
-
-    std::cout << "Finished writing to file\n";
-
+        
     of.close();
 }
 

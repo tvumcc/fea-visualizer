@@ -22,6 +22,12 @@ struct Triangle {
     }
 };
 
+enum class MeshType {
+    Open = 0,
+    Closed,
+    Mirrored,
+};
+
 /**
  * Represents a triangulated surface, that can be either planar or closed, that exists in 3D space.
  */
@@ -44,8 +50,7 @@ public:
 
     void init_from_PSLG(PSLG& pslg);
     void init_from_obj(const char* file_path);
-    void export_to_obj(const char* file_path, float vertex_extrusion = 0.25f);
-    void export_to_ply(const char* file_path, float vertex_extrusion = 0.25f);
+    void export_to_ply(const char* file_path, float vertex_extrusion = 0.25f, float threshold = 0.0f, MeshType mesh_type = MeshType::Open);
 
     void draw(bool wireframe);
     void clear();

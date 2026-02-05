@@ -28,7 +28,7 @@ enum class SolverType {
     Heat = 0,
     Wave,
     Advection_Diffusion,
-    Reaction_Diffusion
+    Reaction_Diffusion,
 };
 
 struct Settings {
@@ -37,6 +37,8 @@ struct Settings {
 
     bool draw_grid_interface = true;
     bool draw_surface_wireframe = true;
+    int mesh_type = static_cast<int>(MeshType::Open);
+
     bool paused = false;
     int bvh_depth = 10;
     float brush_strength = 1.0f;
@@ -45,7 +47,7 @@ struct Settings {
 
     std::vector<std::pair<GLuint, ImVec2>> solver_equation_textures;
     std::vector<const char*> solvers = {"Heat", "Wave", "Advection-Diffusion", "Reaction-Diffusion"};
-    int selected_solver = (int)SolverType::Heat;
+    int selected_solver = static_cast<int>(SolverType::Heat);
 
     std::vector<std::pair<GLuint, ImVec2>> color_map_icon_textures;
     std::vector<const char*> color_maps;
@@ -126,7 +128,6 @@ public:
     void delete_surface();
     void init_surface_from_pslg();
     void init_surface_from_obj();
-    void export_to_obj();
     void export_to_ply();
     void switch_solver(SolverType new_solver);
     void switch_color_map(const char* new_color_map);

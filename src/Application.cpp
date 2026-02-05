@@ -225,26 +225,8 @@ void Application::render_gui() {
     if (ImGui::Button("Align Top Down"))       align_top_down();
     ImGui::Checkbox("Draw Grid", &settings.draw_grid_interface);
 
-    ImGui::SeparatorText("Surface");
-    if (!surface->initialized) {
-        if (ImGui::Button("Draw PSLG")) switch_mode(InteractMode::DrawPSLG);
-        if (!pslg->empty()) {
-            ImGui::Indent();
-            if (ImGui::Button("Clear PSLG")) clear_pslg();
-            if (pslg->closed()) {
-                if (ImGui::Button("Add Hole")) switch_mode(InteractMode::AddHole);
-                if (!pslg->holes.empty())
-                    if (ImGui::Button("Clear Holes")) clear_holes();
-                if (ImGui::Button("Init from PSLG")) init_surface_from_pslg();
-            }
-            ImGui::Unindent();
-        }
-        if (ImGui::Button("Init from .obj"))   init_surface_from_obj();
-    } else {
-        ImGui::Text(std::format("{} nodes", solver->surface->vertices.size()).c_str());
-        ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
-        ImGui::Separator();
-        ImGui::Checkbox("Draw Triangle Mesh", &settings.draw_surface_wireframe);
+    if (surface->initialized) {
+        ImGui::SeparatorText("Brush");
         ImGui::Image(settings.color_map_icon_textures[settings.selected_color_map].first, 
             ImVec2(settings.color_map_icon_textures[settings.selected_color_map].second.x * 1.5, settings.color_map_icon_textures[settings.selected_color_map].second.y * 1.5));
         ImGui::SameLine();
@@ -264,11 +246,6 @@ void Application::render_gui() {
             }
             ImGui::EndCombo();
         }
-        if (ImGui::Button("Export .obj")) export_to_obj();
-        ImGui::SameLine();
-        if (ImGui::Button("Export .ply")) export_to_ply();
-        if (ImGui::Button("Delete Surface")) delete_surface();
-        ImGui::SameLine();
         if (settings.interact_mode != InteractMode::Brush) {
             if (ImGui::Button("Enable Brush"))   switch_mode(InteractMode::Brush);
         } else {
@@ -277,13 +254,49 @@ void Application::render_gui() {
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
             ImGui::SliderFloat("##Brush Value", &settings.brush_strength, 0.01f, 1.0f);
         }
+    }
+
+    ImGui::SeparatorText("Surface");
+    if (!surface->initialized) {
+        if (ImGui::Button("Draw PSLG")) switch_mode(InteractMode::DrawPSLG);
+        if (!pslg->empty()) {
+            ImGui::Indent();
+            if (ImGui::Button("Clear PSLG")) clear_pslg();
+            if (pslg->closed()) {
+                if (ImGui::Button("Add Hole")) switch_mode(InteractMode::AddHole);
+                if (!pslg->holes.empty())
+                    if (ImGui::Button("Clear Holes")) clear_holes();
+                if (ImGui::Button("Init from PSLG")) init_surface_from_pslg();
+            }
+            ImGui::Unindent();
+        }
+        if (ImGui::Button("Init from .obj"))   init_surface_from_obj();
+    } else {
+        ImGui::Text(std::format("{} nodes", solver->surface->vertices.size()).c_str());
+        ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
+        ImGui::Separator();
+
+        ImGui::Checkbox("Draw Triangle Mesh", &settings.draw_surface_wireframe);
+
+        if (ImGui::Button("Export .ply")) export_to_ply();
+        if (ImGui::Button("Delete Surface")) delete_surface();
+
         ImGui::Text("Vertex Extrusion");
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
         ImGui::SliderFloat("##Vertex Extrusion", &settings.vertex_extrusion, 0.0f, 1.0f);
+
         ImGui::Text("Pixel Discard Threshold");
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
         ImGui::SliderFloat("##Pixel Discard Threshold", &settings.pixel_discard_threshold, 0.0f, 1.0f);
 
+        if (settings.pixel_discard_threshold != 0.0f) {
+            ImGui::Text("Mesh Type");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ImGui::Combo("##Mesh Type", &settings.mesh_type, "Open\0Closed\0Mirrored\0", ImGuiComboFlags_WidthFitPreview);
+        }
+    }
+
+    if (surface->initialized) {
         ImGui::SeparatorText("Solver");
         if (ImGui::BeginCombo("Solver", settings.solvers[settings.selected_solver], ImGuiComboFlags_WidthFitPreview)) {
             for (int i = 0; i < settings.solvers.size(); i++) {
@@ -463,23 +476,12 @@ void Application::init_surface_from_obj() {
         ImGui::OpenPopup("Error");
     }
 }
-void Application::export_to_obj() {
-    nfdchar_t *out_path = nullptr;
-    nfdresult_t result = NFD_SaveDialog("obj", "export.obj", &out_path);
-    if (result == NFD_CANCEL || result == NFD_ERROR) return;
-    try {
-        surface->export_to_obj(out_path, settings.vertex_extrusion);
-    } catch (std::runtime_error& e) {
-        settings.error_message = e.what();
-        ImGui::OpenPopup("Error");
-    }
-}
 void Application::export_to_ply() {
     nfdchar_t *out_path = nullptr;
     nfdresult_t result = NFD_SaveDialog("ply", "export.ply", &out_path);
     if (result == NFD_CANCEL || result == NFD_ERROR) return;
     try {
-        surface->export_to_ply(out_path, settings.vertex_extrusion);
+        surface->export_to_ply(out_path, settings.vertex_extrusion, settings.pixel_discard_threshold, static_cast<MeshType>(settings.mesh_type));
     } catch (std::runtime_error& e) {
         settings.error_message = e.what();
         ImGui::OpenPopup("Error");
