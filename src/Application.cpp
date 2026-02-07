@@ -194,43 +194,114 @@ void Application::render_gui() {
     switch (settings.interact_mode) {
         case InteractMode::Idle: {
             if (ImGui::CollapsingHeader("Mode: Idle", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::TextWrapped("These controls also work in other modes.");
-                ImGui::TextWrapped("<RMB> and drag to rotate the camera.");
-                ImGui::TextWrapped("<Shift-LMB> and drag to pan.");
-                ImGui::TextWrapped("<Scroll> to zoom in and out.");
-                ImGui::TextWrapped("<E> to toggle the GUI.");
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+                ImGui::Text("[E]");
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::TextWrapped("Show/Hide GUI");
             }
         } break;
         case InteractMode::DrawPSLG: {
             if (ImGui::CollapsingHeader("Mode: PSLG Drawing", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::TextWrapped("<LMB> points in sequence to draw connected line segments.");
-                ImGui::TextWrapped("<Ctrl-Enter> to finalize a contiguous section of the drawing.");
-                ImGui::TextWrapped("<Enter> to finalize the entire drawing.");
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+                ImGui::Text("[LMB]");
+                ImGui::PopStyleColor();
+                ImGui::TextWrapped("Choose points in sequence to draw connected line segments.");
+
+
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+                ImGui::Text("[Ctrl] + [Enter]");
+                ImGui::PopStyleColor();
+                ImGui::TextWrapped("Finalize a contiguous section of the drawing.");
+
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+                ImGui::Text("[Enter]");
+                ImGui::PopStyleColor();
+                ImGui::TextWrapped("Finalize the entire drawing.");
             }
         } break;
         case InteractMode::AddHole: {
             if (ImGui::CollapsingHeader("Mode: Add Hole", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::TextWrapped("<LMB> in a closed region to designate it as a hole.");
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+                ImGui::Text("[LMB]");
+                ImGui::PopStyleColor();
+                ImGui::TextWrapped("Select a closed loop to designate it as a hole");
             }
         } break;
         case InteractMode::Brush: {
             if (ImGui::CollapsingHeader("Mode: Brush", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::TextWrapped("<LMB> on the mesh to set nodal values.");
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+                ImGui::Text("[LMB]");
+                ImGui::PopStyleColor();
+                ImGui::TextWrapped("Draw on the mesh to set nodal values.");
             }
         } break;
     }
 
     ImGui::SeparatorText("Camera");
-    if (ImGui::Button("Reset Orbit Position")) reset_orbit_position();
-    if (ImGui::Button("Align Top Down"))       align_top_down();
-    ImGui::Checkbox("Draw Grid", &settings.draw_grid_interface);
+    if (ImGui::CollapsingHeader("Camera Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+        ImGui::Text("[RMB] + Drag");
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::TextWrapped("Rotate");
+
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+        ImGui::Text("[Shift] + [LMB] + Drag");
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::TextWrapped("Pan");
+
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+        ImGui::Text("[Scroll]");
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::TextWrapped("Zoom");
+    }
+
+    if (ImGui::Button("Reset Pan", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0))) reset_orbit_position();
+    ImGui::SameLine();
+    if (ImGui::Button("Align Top", ImVec2(ImGui::GetContentRegionAvail().x, 0.0)))       align_top_down();
 
     if (surface->initialized) {
         ImGui::SeparatorText("Brush");
+        
+        ImGui::Text("Brush Strength");
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        ImGui::SliderFloat("##Brush Strength", &settings.brush_strength, 0.01f, 1.0f);
+    }
+
+    ImGui::SeparatorText("Surface");
+    if (!surface->initialized) {
+        if (!pslg->empty()) {
+            if (ImGui::Button("Clear PSLG", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) clear_pslg();
+            if (pslg->closed()) {
+                if (ImGui::Button("Add Hole", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::AddHole);
+                if (!pslg->holes.empty())
+                    if (ImGui::Button("Clear Holes", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) clear_holes();
+                if (ImGui::Button("Triangulate", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) init_surface_from_pslg();
+            }
+        } else {
+            if (ImGui::Button("Load Mesh", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0)))   init_surface_from_obj();
+            ImGui::SameLine();
+            if (ImGui::Button("Draw PSLG", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::DrawPSLG);
+        }
+    } else {
+        ImGui::Text(std::format("{} nodes", solver->surface->vertices.size()).c_str());
+        ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
+        ImGui::Separator();
+
+        ImGui::Checkbox("Show Element Outlines", &settings.draw_surface_wireframe);
+        if (ImGui::Button("Export to .ply", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0))) export_to_ply();
+        ImGui::SameLine();
+        if (ImGui::Button("Delete Surface", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) delete_surface();
+
+        ImGui::Text("Color Map");
         ImGui::Image(settings.color_map_icon_textures[settings.selected_color_map].first, 
             ImVec2(settings.color_map_icon_textures[settings.selected_color_map].second.x * 1.5, settings.color_map_icon_textures[settings.selected_color_map].second.y * 1.5));
         ImGui::SameLine();
-        if (ImGui::BeginCombo("Color Map", settings.color_maps[settings.selected_color_map], ImGuiComboFlags_WidthFitPreview)) {
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        if (ImGui::BeginCombo("##Color Map", settings.color_maps[settings.selected_color_map])) {
             for (int i = 0; i < settings.color_maps.size(); i++) {
                 ImGui::Image(settings.color_map_icon_textures[i].first, settings.color_map_icon_textures[i].second);
                 ImGui::SameLine();
@@ -246,40 +317,6 @@ void Application::render_gui() {
             }
             ImGui::EndCombo();
         }
-        if (settings.interact_mode != InteractMode::Brush) {
-            if (ImGui::Button("Enable Brush"))   switch_mode(InteractMode::Brush);
-        } else {
-            if (ImGui::Button("Disable Brush"))  switch_mode(InteractMode::Idle);
-            ImGui::Text("Brush Value");
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::SliderFloat("##Brush Value", &settings.brush_strength, 0.01f, 1.0f);
-        }
-    }
-
-    ImGui::SeparatorText("Surface");
-    if (!surface->initialized) {
-        if (ImGui::Button("Draw PSLG")) switch_mode(InteractMode::DrawPSLG);
-        if (!pslg->empty()) {
-            ImGui::Indent();
-            if (ImGui::Button("Clear PSLG")) clear_pslg();
-            if (pslg->closed()) {
-                if (ImGui::Button("Add Hole")) switch_mode(InteractMode::AddHole);
-                if (!pslg->holes.empty())
-                    if (ImGui::Button("Clear Holes")) clear_holes();
-                if (ImGui::Button("Init from PSLG")) init_surface_from_pslg();
-            }
-            ImGui::Unindent();
-        }
-        if (ImGui::Button("Init from .obj"))   init_surface_from_obj();
-    } else {
-        ImGui::Text(std::format("{} nodes", solver->surface->vertices.size()).c_str());
-        ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
-        ImGui::Separator();
-
-        ImGui::Checkbox("Draw Triangle Mesh", &settings.draw_surface_wireframe);
-
-        if (ImGui::Button("Export .ply")) export_to_ply();
-        if (ImGui::Button("Delete Surface")) delete_surface();
 
         ImGui::Text("Vertex Extrusion");
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
@@ -298,7 +335,9 @@ void Application::render_gui() {
 
     if (surface->initialized) {
         ImGui::SeparatorText("Solver");
-        if (ImGui::BeginCombo("Solver", settings.solvers[settings.selected_solver], ImGuiComboFlags_WidthFitPreview)) {
+        ImGui::Text("Equation");
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        if (ImGui::BeginCombo("##Equation", settings.solvers[settings.selected_solver])) {
             for (int i = 0; i < settings.solvers.size(); i++) {
                 const bool is_selected = (settings.selected_solver == i);
                 if (ImGui::Selectable(settings.solvers[i], is_selected)) {
@@ -313,40 +352,40 @@ void Application::render_gui() {
         }
 
         if (!settings.paused) {
-            if (ImGui::Button("Pause")) settings.paused = true;
+            if (ImGui::Button("Pause", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0))) settings.paused = true;
         } else {
-            if (ImGui::Button("Unpause")) settings.paused = false;
+            if (ImGui::Button("Unpause", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0))) settings.paused = false;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Clear Solver"))  clear_solver();
+        if (ImGui::Button("Clear Solver", ImVec2(ImGui::GetContentRegionAvail().x, 0.0)))  clear_solver();
         switch ((SolverType)settings.selected_solver) {
             case SolverType::Heat: {
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
                 ImGui::SliderFloat("##Heat Time Step", &((HeatSolver*)solver.get())->time_step, 0.005f, 0.25f); 
-                ImGui::Text("Conductivity");
+                ImGui::Text("Diffusivity Constant (c)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Heat c", &((HeatSolver*)solver.get())->conductivity, 0.005f, 0.25f);
+                ImGui::SliderFloat("##Heat Diffusivity Constant (c)", &((HeatSolver*)solver.get())->conductivity, 0.005f, 0.25f);
             } break;
             case SolverType::Wave: {
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
                 ImGui::SliderFloat("##Wave Time Step", &((WaveSolver*)solver.get())->time_step, 0.005f, 0.25f); 
-                ImGui::Text("c");
+                ImGui::Text("Propagation Speed (c)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Wave c", &((WaveSolver*)solver.get())->c, 0.005f, 0.25f);
+                ImGui::SliderFloat("##Wave Propagation Speed (c)", &((WaveSolver*)solver.get())->c, 0.005f, 0.25f);
             } break;
             case SolverType::Advection_Diffusion: {
                 AdvectionDiffusionSolver* advection_diffusion_solver = (AdvectionDiffusionSolver*)solver.get();
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
                 ImGui::SliderFloat("##Advection-Diffusion Time Step", &advection_diffusion_solver->time_step, 0.001f, 0.003f); 
-                ImGui::Text("c");
+                ImGui::Text("Diffusivity Constant(c)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Advection-Diffusion c", &((AdvectionDiffusionSolver*)solver.get())->c, 0.05f, 0.25f);
-                ImGui::Text("Velocity");
+                ImGui::SliderFloat("##Advection-Diffusion Diffusivity Constant (c)", &((AdvectionDiffusionSolver*)solver.get())->c, 0.05f, 0.25f);
+                ImGui::Text("Velocity (v)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                if (ImGui::SliderFloat3("##Advection-Diffusion Velocity", advection_diffusion_solver->velocity.data(), -1.0f, 1.0f))
+                if (ImGui::SliderFloat3("##Advection-Diffusion Velocity (v)", advection_diffusion_solver->velocity.data(), -1.0f, 1.0f))
                     advection_diffusion_solver->assemble();
             } break;
             case SolverType::Reaction_Diffusion: {
@@ -355,12 +394,12 @@ void Application::render_gui() {
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
                 ImGui::SliderFloat("##Reaction-Diffusion Time Step", &((ReactionDiffusionSolver*)solver.get())->time_step, 0.001f, 0.010f); 
-                ImGui::Text("Feed Rate");
+                ImGui::Text("Feed Rate (f)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Reaction-Diffusion Feed Rate", &((ReactionDiffusionSolver*)solver.get())->feed_rate, 0.0f, 0.1f); 
-                ImGui::Text("Kill Rate");
+                ImGui::SliderFloat("##Reaction-Diffusion Feed Rate (f)", &((ReactionDiffusionSolver*)solver.get())->feed_rate, 0.0f, 0.1f); 
+                ImGui::Text("Kill Rate (k)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Reaction-Diffusion Kill Rate", &((ReactionDiffusionSolver*)solver.get())->kill_rate, 0.0f, 0.1f); 
+                ImGui::SliderFloat("##Reaction-Diffusion Kill Rate (k)", &((ReactionDiffusionSolver*)solver.get())->kill_rate, 0.0f, 0.1f); 
             } break;
         }
     }
@@ -400,7 +439,8 @@ void Application::run() {
             solver->advance_time();
             if (solver->has_numerical_instability()) {
                 solver->clear_values();
-                settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values...";
+                settings.paused = true;
+                settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values and pausing...";
                 ImGui::OpenPopup("Error");
             }
         }
@@ -446,6 +486,7 @@ void Application::delete_surface() {
     surface->clear();
     solver->surface = nullptr;
     bvh = nullptr;
+    switch_mode(InteractMode::Idle);
 }
 void Application::init_surface_from_pslg() {
     delete_surface(); 
@@ -668,7 +709,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 
     if (app->gui_visible) {
         glViewport(app->gui_width * x_scale, 0, (width - app->gui_width * x_scale), height);
-        app->camera->set_aspect_ratio((float)(width - app->gui_width) / (height));
+        app->camera->set_aspect_ratio((float)(width - app->gui_width * x_scale) / (height));
     } else {
         glViewport(0, 0, width, height);
         app->camera->set_aspect_ratio((float)width / height);
