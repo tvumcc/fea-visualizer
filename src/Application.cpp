@@ -191,52 +191,6 @@ void Application::render_gui() {
     colors[ImGuiCol_HeaderHovered] = ImVec4(0.60f, 0.26f, 0.98f, 0.40f);
     colors[ImGuiCol_HeaderActive] = ImVec4(0.34f, 0.26f, 0.98f, 0.40f);
 
-    switch (settings.interact_mode) {
-        case InteractMode::Idle: {
-            if (ImGui::CollapsingHeader("Mode: Idle", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
-                ImGui::Text("[E]");
-                ImGui::PopStyleColor();
-                ImGui::SameLine();
-                ImGui::TextWrapped("Show/Hide GUI");
-            }
-        } break;
-        case InteractMode::DrawPSLG: {
-            if (ImGui::CollapsingHeader("Mode: PSLG Drawing", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
-                ImGui::Text("[LMB]");
-                ImGui::PopStyleColor();
-                ImGui::TextWrapped("Choose points in sequence to draw connected line segments.");
-
-
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
-                ImGui::Text("[Ctrl] + [Enter]");
-                ImGui::PopStyleColor();
-                ImGui::TextWrapped("Finalize a contiguous section of the drawing.");
-
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
-                ImGui::Text("[Enter]");
-                ImGui::PopStyleColor();
-                ImGui::TextWrapped("Finalize the entire drawing.");
-            }
-        } break;
-        case InteractMode::AddHole: {
-            if (ImGui::CollapsingHeader("Mode: Add Hole", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
-                ImGui::Text("[LMB]");
-                ImGui::PopStyleColor();
-                ImGui::TextWrapped("Select a closed loop to designate it as a hole");
-            }
-        } break;
-        case InteractMode::Brush: {
-            if (ImGui::CollapsingHeader("Mode: Brush", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
-                ImGui::Text("[LMB]");
-                ImGui::PopStyleColor();
-                ImGui::TextWrapped("Draw on the mesh to set nodal values.");
-            }
-        } break;
-    }
 
     ImGui::SeparatorText("Camera");
     if (ImGui::CollapsingHeader("Camera Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -273,18 +227,31 @@ void Application::render_gui() {
 
     ImGui::SeparatorText("Surface");
     if (!surface->initialized) {
-        if (!pslg->empty()) {
-            if (ImGui::Button("Clear PSLG", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) clear_pslg();
-            if (pslg->closed()) {
-                if (ImGui::Button("Add Hole", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::AddHole);
-                if (!pslg->holes.empty())
-                    if (ImGui::Button("Clear Holes", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) clear_holes();
-                if (ImGui::Button("Triangulate", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) init_surface_from_pslg();
-            }
-        } else {
-            if (ImGui::Button("Load Mesh", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0)))   init_surface_from_obj();
-            ImGui::SameLine();
-            if (ImGui::Button("Draw PSLG", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::DrawPSLG);
+        switch (settings.interact_mode) {
+            case InteractMode::Idle:
+                if (ImGui::Button("Load Mesh", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0)))   switch_mode(InteractMode::LoadMesh);
+                ImGui::SameLine();
+                if (ImGui::Button("Draw PSLG", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::DrawPSLG);
+                break;
+            case InteractMode::AddHole:
+            case InteractMode::DrawPSLG:
+                if (ImGui::Button("Clear PSLG", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) clear_pslg();
+                if (pslg->closed()) {
+                    if (ImGui::Button("Add Hole", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::AddHole);
+                    if (!pslg->holes.empty())
+                        if (ImGui::Button("Clear Holes", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) clear_holes();
+                    if (ImGui::Button("Triangulate", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) init_surface_from_pslg();
+                }
+                break;
+            case InteractMode::LoadMesh:
+                if (ImGui::Button("Import OBJ", ImVec2(ImGui::GetContentRegionAvail().x, 0.0)))   init_surface_from_obj();
+                ImGui::Text("Preset Meshes");
+                int preset = -1;
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                if (ImGui::ListBox("##Preset Meshes", &preset, fem_mesh_obj_strs.data(), fem_mesh_obj_strs.size())) {
+                    init_surface_from_obj(fem_mesh_obj_paths[preset].string().c_str());
+                }
+                break;
         }
     } else {
         ImGui::Text(std::format("{} nodes", solver->surface->vertices.size()).c_str());
@@ -335,6 +302,13 @@ void Application::render_gui() {
 
     if (surface->initialized) {
         ImGui::SeparatorText("Solver");
+
+        ImVec2 equation_viewer_size = ImVec2(ImGui::GetContentRegionAvail().x, settings.solver_equation_textures[settings.selected_solver].second.y + 15);
+        ImGui::Dummy(ImVec2(0.0f, 5.0f));
+        ImGui::BeginChild("##Equation Viewer", equation_viewer_size, false, ImGuiWindowFlags_HorizontalScrollbar);
+        ImGui::Image(settings.solver_equation_textures[settings.selected_solver].first, settings.solver_equation_textures[settings.selected_solver].second);
+        ImGui::EndChild();
+
         ImGui::Text("Equation");
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
         if (ImGui::BeginCombo("##Equation", settings.solvers[settings.selected_solver])) {
@@ -404,13 +378,80 @@ void Application::render_gui() {
         }
     }
 
-    if (surface->initialized) {
-        ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Always);
-        ImGui::SetNextWindowContentSize(ImVec2(0, 0));
-        ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
-        ImGui::Begin(std::format("{} Equation:", settings.solvers[settings.selected_solver]).c_str(), nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize |ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
-        ImGui::Image(settings.solver_equation_textures[settings.selected_solver].first, settings.solver_equation_textures[settings.selected_solver].second);
-        ImGui::End();
+    ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Always);
+    ImGui::SetNextWindowContentSize(ImVec2(0, 0));
+    ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + gui_width + 5, main_viewport->WorkPos.y + 5));
+    switch (settings.interact_mode) {
+        case InteractMode::Idle: {
+            ImGui::Begin("Mode: Idle", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+            ImGui::Text("[E]");
+            ImGui::PopStyleColor();
+            ImGui::SameLine();
+            ImGui::Text("Show/Hide GUI");
+
+            ImGui::End();
+        } break;
+        case InteractMode::LoadMesh: {
+            ImGui::Begin("Mode: Load Mesh", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+
+            ImGui::Text("Select a preset mesh or import your own .obj file");
+
+            ImGui::End();
+        } break;
+        case InteractMode::DrawPSLG: {
+            ImGui::Begin("Mode: PSLG Drawing", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Text("Draw a Planar Straight Line Graph to triangulate into a mesh of finite elements");
+
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+            ImGui::Text("[LMB]");
+            ImGui::PopStyleColor();
+            ImGui::SameLine();
+            ImGui::Text("Choose points in sequence to draw connected line segments");
+
+            if (!pslg->closed()) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+                ImGui::Text("[Enter]");
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::Text("Finalize the current loop");
+            }
+
+            if (!pslg->closed() && !pslg->empty()) {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+                ImGui::Text("[Backspace]");
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                ImGui::Text("Remove the last added point");
+            }
+
+            ImGui::End();
+        } break;
+        case InteractMode::AddHole: {
+            ImGui::Begin("Mode: Add Hole", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+            ImGui::Text("[LMB]");
+            ImGui::PopStyleColor();
+            ImGui::SameLine();
+            ImGui::Text("Select a closed loop to designate it as a hole during triangulation");
+
+            ImGui::End();
+        } break;
+        case InteractMode::Brush: {
+            ImGui::Begin("Mode: Brush", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 1.0f, 1.0f));
+            ImGui::Text("[LMB]");
+            ImGui::PopStyleColor();
+            ImGui::SameLine();
+            ImGui::Text("Draw on the mesh to set initial conditions and watch them propagate over time");
+
+            ImGui::Text("Tip: Hover over UI elements to see what they do!");
+
+            ImGui::End();
+        } break;
     }
 }
 
@@ -427,7 +468,7 @@ void Application::run() {
         ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y));
         ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
         if (gui_visible)
-            ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
+            ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
 
         if (settings.interact_mode == InteractMode::DrawPSLG)
             pslg->set_pending_point(get_mouse_to_grid_plane_point());
@@ -506,8 +547,14 @@ void Application::init_surface_from_obj() {
     nfdchar_t *out_path = nullptr;
     nfdresult_t result = NFD_OpenDialog(nullptr, nullptr, &out_path);
     if (result == NFD_CANCEL || result == NFD_ERROR || !std::filesystem::exists(out_path)) return;
+    init_surface_from_obj(out_path);
+}
+void Application::init_surface_from_obj(const char* obj_path) {
+    clear_pslg();
+    delete_surface();
+
     try {
-        surface->init_from_obj(out_path);
+        surface->init_from_obj(obj_path);
         solver->surface = surface;
         solver->init();
         bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
@@ -567,21 +614,30 @@ void Application::switch_color_map(const char* new_color_map) {
     }
 }
 void Application::switch_mode(InteractMode mode) {
+    // Perform mode specific behavior
     switch (mode) {
         case InteractMode::Idle:
-            settings.interact_mode = InteractMode::Idle;
             break;
         case InteractMode::DrawPSLG:
             camera->align_to_plane();
-            settings.interact_mode = InteractMode::DrawPSLG;
+            break;
+        case InteractMode::LoadMesh:
+            fem_mesh_obj_paths.clear();
+            fem_mesh_obj_strs.clear();
+            for (const auto& entry : std::filesystem::directory_iterator(fem_mesh_directory)) {
+                if (entry.path().extension() == ".obj" && std::filesystem::exists(entry.path())) {
+                    fem_mesh_obj_paths.push_back(entry.path());
+                    fem_mesh_obj_strs.push_back(strdup(entry.path().filename().string().c_str()));
+                }
+            }
             break;
         case InteractMode::AddHole:
-            settings.interact_mode = InteractMode::AddHole;
             break;
         case InteractMode::Brush:
-            settings.interact_mode = InteractMode::Brush;
             break;
     }
+
+    settings.interact_mode = mode;
 }
 
 /**
@@ -654,8 +710,8 @@ void Application::init_opengl_window(unsigned int window_width, unsigned int win
     this->window_height = window_height;
 
 	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SAMPLES, 4);
 
@@ -767,17 +823,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         case InteractMode::DrawPSLG: {
             if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
                 app->pslg->finalize();
-                if (!(mods & GLFW_MOD_CONTROL)) {
-                    app->settings.interact_mode = InteractMode::Idle;
-                }
             }
             if (key == GLFW_KEY_BACKSPACE && (action == GLFW_PRESS || action == GLFW_REPEAT)) {
                 app->pslg->remove_last_unfinalized_point();
-            }
-        } break;
-        case InteractMode::Brush: {
-            if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
-                app->settings.interact_mode = InteractMode::Idle;
             }
         } break;
     }

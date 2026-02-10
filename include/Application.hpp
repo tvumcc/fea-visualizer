@@ -16,10 +16,12 @@
 #include "Utils/BVH.hpp"
 
 #include <memory>
+#include <filesystem>
 
 enum class InteractMode {
     Idle,
     DrawPSLG,
+    LoadMesh,
     AddHole,
     Brush,
 };
@@ -97,7 +99,7 @@ class Application {
 public:
     GLFWwindow* window;
     unsigned int window_width = 1100, window_height = 800;
-    unsigned int gui_width = 250;
+    unsigned int gui_width = 275;
     bool gui_visible = true;
     Settings settings;
 
@@ -111,6 +113,10 @@ public:
     ResourceManager<Mesh> meshes;
     ResourceManager<Shader> shaders;
     ResourceManager<ColorMap> color_maps;
+
+    std::string fem_mesh_directory = "assets/fem_meshes";
+    std::vector<std::filesystem::path> fem_mesh_obj_paths;
+    std::vector<const char*> fem_mesh_obj_strs;
 
     Application();
     ~Application();
@@ -128,6 +134,7 @@ public:
     void delete_surface();
     void init_surface_from_pslg();
     void init_surface_from_obj();
+    void init_surface_from_obj(const char* obj_path);
     void export_to_ply();
     void switch_solver(SolverType new_solver);
     void switch_color_map(const char* new_color_map);
