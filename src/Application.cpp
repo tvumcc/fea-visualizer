@@ -214,8 +214,12 @@ void Application::render_gui() {
     }
 
     if (ImGui::Button("Reset Pan", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0))) reset_orbit_position();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Set the camera's orbital center to the origin");
     ImGui::SameLine();
     if (ImGui::Button("Align Top", ImVec2(ImGui::GetContentRegionAvail().x, 0.0)))       align_top_down();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Position the camera to face down onto the XZ plane");
 
     if (surface->initialized) {
         ImGui::SeparatorText("Brush");
@@ -223,6 +227,8 @@ void Application::render_gui() {
         ImGui::Text("Brush Strength");
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
         ImGui::SliderFloat("##Brush Strength", &settings.brush_strength, 0.01f, 1.0f);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("The value the brush sets the mesh's nodal values to");
     }
 
     ImGui::SeparatorText("Surface");
@@ -230,21 +236,46 @@ void Application::render_gui() {
         switch (settings.interact_mode) {
             case InteractMode::Idle:
                 if (ImGui::Button("Load Mesh", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0)))   switch_mode(InteractMode::LoadMesh);
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    ImGui::SetTooltip("Select an existing 3D mesh");
+
                 ImGui::SameLine();
                 if (ImGui::Button("Draw PSLG", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::DrawPSLG);
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    ImGui::SetTooltip("Create a mesh by triangulating a Planar Straight Line Graph");
+
                 break;
             case InteractMode::AddHole:
             case InteractMode::DrawPSLG:
+                if (ImGui::Button("Go Back", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::Idle);
+
                 if (ImGui::Button("Clear PSLG", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) clear_pslg();
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    ImGui::SetTooltip("Remove all of the points from the current Planar Straight Line Graph");
+
                 if (pslg->closed()) {
                     if (ImGui::Button("Add Hole", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::AddHole);
-                    if (!pslg->holes.empty())
+                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                        ImGui::SetTooltip("Designate a closed region as a hole (blank area) for the triangulation process");
+
+                    if (!pslg->holes.empty()) {
                         if (ImGui::Button("Clear Holes", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) clear_holes();
+                        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                            ImGui::SetTooltip("Remove all of the hole indicators");
+                    }
+
                     if (ImGui::Button("Triangulate", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) init_surface_from_pslg();
+                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                        ImGui::SetTooltip("Perform Delaunay triangulation on the PSLG to create a mesh for the Finite Element Method");
                 }
                 break;
             case InteractMode::LoadMesh:
+                if (ImGui::Button("Go Back", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::Idle);
+
                 if (ImGui::Button("Import OBJ", ImVec2(ImGui::GetContentRegionAvail().x, 0.0)))   init_surface_from_obj();
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    ImGui::SetTooltip("Pick a .obj file from your computer's files");
+
                 ImGui::Text("Preset Meshes");
                 int preset = -1;
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
@@ -258,10 +289,22 @@ void Application::render_gui() {
         ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
         ImGui::Separator();
 
+        ImGui::Checkbox("Show Grid", &settings.draw_grid_interface);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Toggle the grid visual");
+
         ImGui::Checkbox("Show Element Outlines", &settings.draw_surface_wireframe);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Toggle the white outlines of the triangles on the mesh");
+
         if (ImGui::Button("Export to .ply", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0))) export_to_ply();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Export the mesh with the current settings for vertex extrusion, discard threshold, color map, mesh type");
         ImGui::SameLine();
         if (ImGui::Button("Delete Surface", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) delete_surface();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Remove the currently initialized surface to create a new one");
+
 
         ImGui::Text("Color Map");
         ImGui::Image(settings.color_map_icon_textures[settings.selected_color_map].first, 
@@ -284,19 +327,27 @@ void Application::render_gui() {
             }
             ImGui::EndCombo();
         }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("The gradient that maps vertex values to colors");
 
         ImGui::Text("Vertex Extrusion");
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
         ImGui::SliderFloat("##Vertex Extrusion", &settings.vertex_extrusion, 0.0f, 1.0f);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("How much vertices extrude along their normal vectors based on their nodal values");
 
-        ImGui::Text("Pixel Discard Threshold");
+        ImGui::Text("Discard Threshold");
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-        ImGui::SliderFloat("##Pixel Discard Threshold", &settings.pixel_discard_threshold, 0.0f, 1.0f);
+        ImGui::SliderFloat("##Discard Threshold", &settings.pixel_discard_threshold, 0.0f, 1.0f);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Values along the surface below this threshold will be discarded");
 
         if (settings.pixel_discard_threshold != 0.0f) {
             ImGui::Text("Mesh Type");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
             ImGui::Combo("##Mesh Type", &settings.mesh_type, "Open\0Closed\0Mirrored\0", ImGuiComboFlags_WidthFitPreview);
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                ImGui::SetTooltip("Open: No new triangles are added\nClosed: New triangles are projected down onto the discard threshold\nMirrored: New triangles are mirrored across the discard threshold\n");
         }
     }
 
@@ -324,14 +375,22 @@ void Application::render_gui() {
             }
             ImGui::EndCombo();
         }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("The partial differential equation to solve on mesh");
 
         if (!settings.paused) {
             if (ImGui::Button("Pause", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0))) settings.paused = true;
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                ImGui::SetTooltip("Stop the solver");
         } else {
             if (ImGui::Button("Unpause", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0))) settings.paused = false;
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                ImGui::SetTooltip("Resume the solver");
         }
         ImGui::SameLine();
         if (ImGui::Button("Clear Solver", ImVec2(ImGui::GetContentRegionAvail().x, 0.0)))  clear_solver();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Reset all nodal values to 0");
         switch ((SolverType)settings.selected_solver) {
             case SolverType::Heat: {
                 ImGui::Text("Time Step");
@@ -524,13 +583,12 @@ void Application::clear_solver() {
     surface->clear_values();
 }
 void Application::delete_surface() {
-    surface->clear();
-    solver->surface = nullptr;
-    bvh = nullptr;
     switch_mode(InteractMode::Idle);
 }
 void Application::init_surface_from_pslg() {
-    delete_surface(); 
+    surface->clear();
+    solver->surface = nullptr;
+    bvh = nullptr;
 
     surface->init_from_PSLG(*pslg);
     solver->surface = surface;
@@ -617,6 +675,10 @@ void Application::switch_mode(InteractMode mode) {
     // Perform mode specific behavior
     switch (mode) {
         case InteractMode::Idle:
+            pslg->clear();
+            surface->clear();
+            solver->surface = nullptr;
+            bvh = nullptr;
             break;
         case InteractMode::DrawPSLG:
             camera->align_to_plane();
