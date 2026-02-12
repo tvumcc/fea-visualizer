@@ -611,13 +611,18 @@ void Application::init_surface_from_pslg() {
     solver->surface = nullptr;
     bvh = nullptr;
 
-    surface->init_from_PSLG(*pslg);
-    solver->surface = surface;
-    solver->init();
-    bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
-    switch_mode(InteractMode::Brush);
+    try {
+        surface->init_from_PSLG(*pslg);
+        solver->surface = surface;
+        solver->init();
+        bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+        switch_mode(InteractMode::Brush);
 
-    clear_pslg();
+        clear_pslg();
+    } catch (std::runtime_error& e) {
+        settings.error_message = e.what();
+        ImGui::OpenPopup("Error");
+    }
 }
 void Application::init_surface_from_obj() {
     clear_pslg();

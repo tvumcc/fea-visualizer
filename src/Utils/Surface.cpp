@@ -37,6 +37,8 @@ void Surface::init_from_PSLG(PSLG& pslg) {
         }
 
         perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()), pslg.indices.size() / 2, in_holes.data(), pslg.holes.size(), pslg.triangle_area);
+        if (triangles.size() == 0)
+            throw std::runtime_error("Invalid PSLG. Make sure that at least one triangle can be created.");
 
         normals = std::vector<glm::vec3>(vertices.size(), glm::vec3(0.0f, 1.0f, 0.0f)); // Normals to the XZ always point in the +Y direction.
         values = std::vector<float>(vertices.size(), 0.0f);
