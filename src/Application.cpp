@@ -37,10 +37,12 @@ Application::~Application() {
 void Application::load_resources() {
     // Meshes
     meshes.add("sphere", std::make_shared<Mesh>("assets/meshes/sphere.obj"));
+    meshes.add("quad", std::make_shared<Mesh>("assets/meshes/quad.obj"));
 
     // Shaders
     shaders.add("default", std::make_shared<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"));
     shaders.add("solid_color", std::make_shared<Shader>("shaders/solid_color_vert.glsl", "shaders/solid_color_frag.glsl"));
+    shaders.add("textured", std::make_shared<Shader>("shaders/solid_color_vert.glsl", "shaders/textured_frag.glsl"));
     shaders.add("vertex_color", std::make_shared<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"));
     shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
     shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
@@ -125,8 +127,10 @@ void Application::load() {
     grid_interface->sphere_mesh = meshes.get("sphere");
 
     pslg = std::make_shared<PSLG>();
-    pslg->shader = shaders.get("solid_color");
+    pslg->solid_color_shader = shaders.get("solid_color");
+    pslg->textured_shader = shaders.get("textured");
     pslg->sphere_mesh = meshes.get("sphere");
+    pslg->quad_mesh = meshes.get("quad");
 
     surface = std::make_shared<Surface>();
     surface->wireframe_shader = shaders.get("wireframe");
@@ -152,6 +156,7 @@ void Application::render() {
         shader.set_mat4x4("view_proj", this->camera->get_view_projection_matrix()); 
     });
 
+    pslg->draw_stencil_image();
     pslg->draw();
 
     shaders.get("fem_mesh")->bind();
@@ -213,6 +218,10 @@ void Application::render_gui() {
         ImGui::TextWrapped("Zoom");
     }
 
+    ImGui::Checkbox("Show Grid", &settings.draw_grid_interface);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Toggle the grid visual");
+
     if (ImGui::Button("Reset Pan", ImVec2(ImGui::GetContentRegionAvail().x / 2, 0.0))) reset_orbit_position();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetTooltip("Set the camera's orbital center to the origin");
@@ -252,6 +261,17 @@ void Application::render_gui() {
                 if (ImGui::Button("Clear PSLG", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) clear_pslg();
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                     ImGui::SetTooltip("Remove all of the points from the current Planar Straight Line Graph");
+                
+                if (ImGui::Button("Load Stencil Image", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) load_stencil_image();
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    ImGui::SetTooltip("Pick an image from your computer's files to draw the PSLG over");
+                if (pslg->stencil_initialized) {
+                    ImGui::Checkbox("Show Stencil Image", &pslg->show_stencil_image);
+                    ImGui::Text("Stencil Image Size");
+                    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                    ImGui::SliderFloat("##Stencil Image Size", &pslg->stencil_scale, 0.001f, 10.0f);
+                }
+
 
                 if (pslg->closed()) {
                     if (ImGui::Button("Add Hole", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) switch_mode(InteractMode::AddHole);
@@ -267,6 +287,11 @@ void Application::render_gui() {
                     if (ImGui::Button("Triangulate", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) init_surface_from_pslg();
                     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                         ImGui::SetTooltip("Perform Delaunay triangulation on the PSLG to create a mesh for the Finite Element Method");
+                    ImGui::Text("Triangle Area");
+                    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                    ImGui::SliderFloat("##Triangle Area", &pslg->triangle_area, 0.0005f, 0.005f, "%.4f");
+                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                        ImGui::SetTooltip("The max triangle area to attempt to enforce during the triangulation process.\nNOTE: Depending on the geometry of the PSLG, this might not be possible to enforce in some cases");
                 }
                 break;
             case InteractMode::LoadMesh:
@@ -288,10 +313,6 @@ void Application::render_gui() {
         ImGui::Text(std::format("{} nodes", solver->surface->vertices.size()).c_str());
         ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
         ImGui::Separator();
-
-        ImGui::Checkbox("Show Grid", &settings.draw_grid_interface);
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-            ImGui::SetTooltip("Toggle the grid visual");
 
         ImGui::Checkbox("Show Element Outlines", &settings.draw_surface_wireframe);
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
@@ -622,17 +643,6 @@ void Application::init_surface_from_obj(const char* obj_path) {
         ImGui::OpenPopup("Error");
     }
 }
-void Application::export_to_ply() {
-    nfdchar_t *out_path = nullptr;
-    nfdresult_t result = NFD_SaveDialog("ply", "export.ply", &out_path);
-    if (result == NFD_CANCEL || result == NFD_ERROR) return;
-    try {
-        surface->export_to_ply(out_path, settings.vertex_extrusion, settings.pixel_discard_threshold, static_cast<MeshType>(settings.mesh_type));
-    } catch (std::runtime_error& e) {
-        settings.error_message = e.what();
-        ImGui::OpenPopup("Error");
-    }
-}
 void Application::switch_solver(SolverType new_solver) {
     bool valid_new_solver = false;
 
@@ -700,6 +710,23 @@ void Application::switch_mode(InteractMode mode) {
     }
 
     settings.interact_mode = mode;
+}
+void Application::export_to_ply() {
+    nfdchar_t *out_path = nullptr;
+    nfdresult_t result = NFD_SaveDialog("ply", "export.ply", &out_path);
+    if (result == NFD_CANCEL || result == NFD_ERROR) return;
+    try {
+        surface->export_to_ply(out_path, settings.vertex_extrusion, settings.pixel_discard_threshold, static_cast<MeshType>(settings.mesh_type));
+    } catch (std::runtime_error& e) {
+        settings.error_message = e.what();
+        ImGui::OpenPopup("Error");
+    }
+}
+void Application::load_stencil_image() {
+    nfdchar_t *out_path = nullptr;
+    nfdresult_t result = NFD_OpenDialog(nullptr, nullptr, &out_path);
+    if (result == NFD_CANCEL || result == NFD_ERROR || !std::filesystem::exists(out_path)) return;
+    pslg->load_stencil_image(out_path);
 }
 
 /**

@@ -17,8 +17,16 @@ public:
     std::vector<glm::vec3> holes;
     std::optional<glm::vec3> pending_point;
 
-    std::shared_ptr<Shader> shader;
+    std::shared_ptr<Shader> solid_color_shader;
+    std::shared_ptr<Shader> textured_shader;
     std::shared_ptr<Mesh> sphere_mesh;
+    std::shared_ptr<Mesh> quad_mesh;
+
+    bool show_stencil_image = true;
+    bool stencil_initialized = false;
+    float stencil_scale = 1.0f;
+
+    float triangle_area = 0.005;
 
     int section_start_idx = 0;
 
@@ -28,16 +36,23 @@ public:
     PSLG();
 
     void draw();
+    void draw_stencil_image();
     void set_pending_point(glm::vec3 point);
     void add_pending_point();
     void add_hole(glm::vec3 hole);
+    void load_stencil_image(std::string path);
     void remove_last_unfinalized_point();
     void finalize();
     void clear();
     void clear_holes();
+    void clear_stencil();
     bool closed();
     bool empty();
 private:
     unsigned int vertex_buffer, element_buffer, vertex_array; 
+
+    unsigned int stencil_texture;
+    float stencil_aspect_ratio = 1.0f;
+
     void load_buffers();
 };

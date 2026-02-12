@@ -135,10 +135,11 @@ public:
     void init_surface_from_pslg();
     void init_surface_from_obj();
     void init_surface_from_obj(const char* obj_path);
-    void export_to_ply();
     void switch_solver(SolverType new_solver);
     void switch_color_map(const char* new_color_map);
     void switch_mode(InteractMode mode);
+    void export_to_ply();
+    void load_stencil_image();
 
     void brush(glm::vec3 world_ray, glm::vec3 origin, float value);
     glm::vec3 get_world_ray_from_mouse();

@@ -1,4 +1,5 @@
 #include <glad/glad.h>
+#include <stb/stb_image.h>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "Utils/PSLG.hpp"
@@ -44,9 +45,9 @@ void PSLG::draw() {
 
     load_buffers();
 
-    shader->bind();
-    shader->set_vec3("object_color", EDGE_COLOR);
-    shader->set_mat4x4("model", glm::mat4(1.0f));
+    solid_color_shader->bind();
+    solid_color_shader->set_vec3("object_color", EDGE_COLOR);
+    solid_color_shader->set_mat4x4("model", glm::mat4(1.0f));
     glDrawElements(GL_LINES, indices.size(), GL_UNSIGNED_INT, 0);
 
     if (pending_point.has_value()) {
@@ -58,13 +59,29 @@ void PSLG::draw() {
     }
 
     for (glm::vec3 hole : holes) {
-        shader->bind();
-        shader->set_vec3("object_color", HOLE_COLOR);
+        solid_color_shader->bind();
+        solid_color_shader->set_vec3("object_color", HOLE_COLOR);
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, hole);
         model = glm::scale(model, glm::vec3(0.05f, 0.05f, 0.05f));
-        shader->set_mat4x4("model", model);
-        sphere_mesh->draw(*shader, GL_TRIANGLES);
+        solid_color_shader->set_mat4x4("model", model);
+        sphere_mesh->draw(*solid_color_shader, GL_TRIANGLES);
+    }
+}
+/**
+ * Render the stencil image used to help draw the PSLG
+ */
+void PSLG::draw_stencil_image() {
+    if (stencil_initialized && show_stencil_image) {
+        textured_shader->bind();
+        textured_shader->set_int("texture_ID", 0);
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(0.0f, -0.001f, 0.0f));
+        model = glm::scale(model, glm::vec3(stencil_scale, 1.0f, stencil_scale / stencil_aspect_ratio));
+        textured_shader->set_mat4x4("model", model);
+        glBindTexture(GL_TEXTURE_2D, stencil_texture);
+        glActiveTexture(GL_TEXTURE0);
+        quad_mesh->draw(*textured_shader, GL_TRIANGLES);
     }
 }
 /**
@@ -103,6 +120,28 @@ void PSLG::add_hole(glm::vec3 hole) {
 }
 
 /**
+ * Load in the stencil image with the given file path to an image
+ */
+void PSLG::load_stencil_image(std::string path) {
+    int width, height, channels;
+    stbi_set_flip_vertically_on_load(true);
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
+
+    glGenTextures(1, &stencil_texture);
+    glBindTexture(GL_TEXTURE_2D, stencil_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, channels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    stbi_image_free(data);
+
+    stencil_aspect_ratio = (float)width / height;
+    stencil_initialized = true;
+}
+
+/**
  * Undo the last added point to PSLG that has not been finalized. 
  */
 void PSLG::remove_last_unfinalized_point() {
@@ -133,9 +172,10 @@ void PSLG::finalize() {
  * Reset the PSLG by clearing all of the data.
  */
 void PSLG::clear() {
+    clear_stencil();
+    clear_holes();
     vertices.clear();
     indices.clear();
-    holes.clear();
     pending_point.reset();
     section_start_idx = 0;
     load_buffers();
@@ -146,6 +186,15 @@ void PSLG::clear() {
  */
 void PSLG::clear_holes() {
     holes.clear();
+}
+
+/**
+ * Reset the stencil image
+ */
+void PSLG::clear_stencil() {
+    stencil_initialized = false;
+    stencil_aspect_ratio = 1.0f;
+    stencil_scale = 1.0f;
 }
 
 /**

@@ -36,7 +36,7 @@ void Surface::init_from_PSLG(PSLG& pslg) {
             in_holes[i+1] = pslg.holes[i/2].z;
         }
 
-        perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()), pslg.indices.size() / 2, in_holes.data(), pslg.holes.size());
+        perform_triangulation(in_vertices.data(), pslg.vertices.size(), reinterpret_cast<int*>(pslg.indices.data()), pslg.indices.size() / 2, in_holes.data(), pslg.holes.size(), pslg.triangle_area);
 
         normals = std::vector<glm::vec3>(vertices.size(), glm::vec3(0.0f, 1.0f, 0.0f)); // Normals to the XZ always point in the +Y direction.
         values = std::vector<float>(vertices.size(), 0.0f);
@@ -390,7 +390,7 @@ void Surface::load_value_buffer() {
  * @param holes The flattened hole data as a raw pointer. Every 3 double define a 3D position that denote a closed region as a hole.
  * @param num_holes The number of holes. This is the number of element in holes divided by 3.
  */
-void Surface::perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes) {
+void Surface::perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes, float triangle_area) {
     triangulateio tri_in = {};
     tri_in.pointlist = vertices;
     tri_in.numberofpoints = num_vertices;
@@ -412,7 +412,7 @@ void Surface::perform_triangulation(double* vertices, int num_vertices, int* seg
     tri_out.segmentlist = nullptr;
     tri_out.segmentmarkerlist = nullptr;
     
-    char args[] = "Qeqpza0.005";
+    char* args = (char*)(std::format("Qeqpza{}", triangle_area).c_str());
     triangulate(args, &tri_in, &tri_out, nullptr);
 
     this->vertices = std::vector<glm::vec3>(tri_out.numberofpoints, glm::vec3(0.0));

@@ -62,5 +62,5 @@ private:
 
     void load_buffers();
     void load_value_buffer();
-    void perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes);
+    void perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes, float triangle_area);
 };
