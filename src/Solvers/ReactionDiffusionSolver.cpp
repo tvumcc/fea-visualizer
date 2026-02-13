@@ -8,7 +8,6 @@ void ReactionDiffusionSolver::clear_values() {
     u.setZero();
     v.resize(surface->num_unknown_nodes());
     v.setZero();
-    map_vector_to_surface(v);
 }
 
 void ReactionDiffusionSolver::assemble() {

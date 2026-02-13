@@ -39,7 +39,6 @@ struct Settings {
 
     bool draw_grid_interface = true;
     bool draw_surface_wireframe = true;
-    int mesh_type = static_cast<int>(MeshType::Open);
 
     bool paused = false;
     int bvh_depth = 10;

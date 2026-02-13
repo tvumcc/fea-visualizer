@@ -28,6 +28,11 @@ enum class MeshType {
     Mirrored,
 };
 
+enum class BoundaryCondition {
+    Dirichlet = 0,
+    Neumann, 
+};
+
 /**
  * Represents a triangulated surface, that can be either planar or closed, that exists in 3D space.
  */
@@ -42,6 +47,9 @@ public:
     std::shared_ptr<Shader> wireframe_shader;
     std::shared_ptr<Shader> fem_mesh_shader;
     std::shared_ptr<ColorMap> color_map;
+    
+    int mesh_type = static_cast<int>(MeshType::Open);
+    int boundary_condition = static_cast<int>(BoundaryCondition::Dirichlet);
 
     int num_boundary_points = 0;
     bool closed;

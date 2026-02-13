@@ -284,7 +284,6 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion, float
     of.close();
 }
 
-
 /**
  * Renders this surface to the screen.
  */
@@ -336,7 +335,7 @@ void Surface::clear_values() {
  * Returns the total number of vertices minus the number of vertices lying on the boundary of the domain.
  */
 int Surface::num_unknown_nodes() {
-    return vertices.size() - num_boundary_points;
+    return vertices.size() - (static_cast<BoundaryCondition>(boundary_condition) == BoundaryCondition::Dirichlet ? num_boundary_points : 0);
 }
 
 /**

@@ -9,15 +9,30 @@
  */
 void Solver::init() {
     if (surface) {
-        int idx = 0;
-        idx_map = std::vector<int>(surface->vertices.size(), -1);
-        for (int i = 0; i < surface->vertices.size(); i++)
-            if (!surface->on_boundary[i])
-                idx_map[i] = idx++;
-
-        assemble();
+        update_boundary_conditions();
         clear_values();
     }
+}
+
+/**
+ * Update this solver's index map to reflect the surface's boundary conditions
+ */
+void Solver::update_boundary_conditions() {
+    int idx = 0;
+    idx_map = std::vector<int>(surface->vertices.size(), -1);
+    for (int i = 0; i < surface->vertices.size(); i++) {
+        switch (static_cast<BoundaryCondition>(surface->boundary_condition)) {
+            case BoundaryCondition::Dirichlet:
+                if (!surface->on_boundary[i])
+                    idx_map[i] = idx++;
+                break;
+            case BoundaryCondition::Neumann: 
+                idx_map[i] = idx++;
+                break;
+        }
+    }
+    assemble();
+    clear_values();
 }
 
 /**
@@ -64,7 +79,7 @@ void Solver::assemble_stiffness_matrix() {
 
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                if (!surface->on_boundary[surface->triangles[k][i]] && !surface->on_boundary[surface->triangles[k][j]]) {
+                if (static_cast<BoundaryCondition>(surface->boundary_condition) == BoundaryCondition::Neumann || !surface->on_boundary[surface->triangles[k][i]] && !surface->on_boundary[surface->triangles[k][j]]) {
                     matrix_entries.push_back(Eigen::Triplet<float>(
                         idx_map[surface->triangles[k][i]],
                         idx_map[surface->triangles[k][j]], 
@@ -104,7 +119,7 @@ void Solver::assemble_mass_matrix() {
 
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                if (!surface->on_boundary[surface->triangles[k][i]] && !surface->on_boundary[surface->triangles[k][j]]) {
+                if (static_cast<BoundaryCondition>(surface->boundary_condition) == BoundaryCondition::Neumann || !surface->on_boundary[surface->triangles[k][i]] && !surface->on_boundary[surface->triangles[k][j]]) {
                     matrix_entries.push_back(Eigen::Triplet<float>(
                         idx_map[surface->triangles[k][i]],
                         idx_map[surface->triangles[k][j]], 
@@ -125,7 +140,7 @@ void Solver::assemble_mass_matrix() {
  */
 Eigen::VectorXf Solver::get_surface_value_vector() {
     Eigen::VectorXf vector;
-    vector.resize(surface->vertices.size() - surface->num_boundary_points);
+    vector.resize(surface->num_unknown_nodes());
     for (int i = 0; i < idx_map.size(); i++)
         if (idx_map[i] != -1)
             vector.coeffRef(idx_map[i], 0) = surface->values[i];

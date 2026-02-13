@@ -366,9 +366,22 @@ void Application::render_gui() {
         if (settings.pixel_discard_threshold != 0.0f) {
             ImGui::Text("Mesh Type");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::Combo("##Mesh Type", &settings.mesh_type, "Open\0Closed\0Mirrored\0", ImGuiComboFlags_WidthFitPreview);
+            ImGui::Combo("##Mesh Type", &surface->mesh_type, "Open\0Closed\0Mirrored\0", ImGuiComboFlags_WidthFitPreview);
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                 ImGui::SetTooltip("Open: No new triangles are added\nClosed: New triangles are projected down onto the discard threshold\nMirrored: New triangles are mirrored across the discard threshold\n");
+        }
+
+        if (surface->num_boundary_points != 0) {
+            ImGui::Text("Boundary Conditions");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            if (ImGui::Combo("##Boundary Conditions", &surface->boundary_condition, "Dirichlet\0Neumann\0", ImGuiComboFlags_WidthFitPreview)) {
+                std::cout << "updated bcs\n";
+                std::cout << surface->num_unknown_nodes() << "\n";
+                solver->update_boundary_conditions();
+                std::cout << surface->num_unknown_nodes() << "\n";
+            }
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                ImGui::SetTooltip("Defines the behavior of nodes on the boundary.\nDirichlet: Boundary nodes will always be 0\nNeumann: The flux through boundary nodes is always 0\n");
         }
     }
 
@@ -721,7 +734,7 @@ void Application::export_to_ply() {
     nfdresult_t result = NFD_SaveDialog("ply", "export.ply", &out_path);
     if (result == NFD_CANCEL || result == NFD_ERROR) return;
     try {
-        surface->export_to_ply(out_path, settings.vertex_extrusion, settings.pixel_discard_threshold, static_cast<MeshType>(settings.mesh_type));
+        surface->export_to_ply(out_path, settings.vertex_extrusion, settings.pixel_discard_threshold, static_cast<MeshType>(surface->mesh_type));
     } catch (std::runtime_error& e) {
         settings.error_message = e.what();
         ImGui::OpenPopup("Error");

@@ -15,6 +15,7 @@ public:
     Eigen::SparseMatrix<float> mass_matrix;
 
     void init();
+    void update_boundary_conditions();
     virtual void advance_time() = 0;
     virtual void clear_values() = 0;
     virtual bool has_numerical_instability() = 0;
