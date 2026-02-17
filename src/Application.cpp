@@ -46,6 +46,7 @@ void Application::load_resources() {
     shaders.add("vertex_color", std::make_shared<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"));
     shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
     shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
+    shaders.add("dot_product", std::make_shared<ComputeShader>("shaders/dot_product.glsl"));
 
     // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same. (as well as the image icon file)
     color_maps.add("Viridis", std::make_shared<ColorMap>(
@@ -122,21 +123,45 @@ void Application::load() {
     framebuffer_size_callback(window, window_width, window_height);
 
     grid_interface = std::make_shared<GridInterface>();
-    grid_interface->solid_color_shader = shaders.get("solid_color");
-    grid_interface->vertex_color_shader = shaders.get("vertex_color");
+    grid_interface->solid_color_shader = static_pointer_cast<Shader>(shaders.get("solid_color"));
+    grid_interface->vertex_color_shader = static_pointer_cast<Shader>(shaders.get("vertex_color"));
     grid_interface->sphere_mesh = meshes.get("sphere");
 
     pslg = std::make_shared<PSLG>();
-    pslg->solid_color_shader = shaders.get("solid_color");
-    pslg->textured_shader = shaders.get("textured");
+    pslg->solid_color_shader = static_pointer_cast<Shader>(shaders.get("solid_color"));
+    pslg->textured_shader = static_pointer_cast<Shader>(shaders.get("textured"));
     pslg->sphere_mesh = meshes.get("sphere");
     pslg->quad_mesh = meshes.get("quad");
 
     surface = std::make_shared<Surface>();
-    surface->wireframe_shader = shaders.get("wireframe");
-    surface->fem_mesh_shader = shaders.get("fem_mesh");
+    surface->wireframe_shader = static_pointer_cast<Shader>(shaders.get("wireframe"));
+    surface->fem_mesh_shader = static_pointer_cast<Shader>(shaders.get("fem_mesh"));
 
     switch_solver(SolverType::Wave);
+    solver->compute_shader = static_pointer_cast<ComputeShader>(shaders.get("dot_product"));
+
+    int N = 100'000'000;
+    solver->setup_dot_product_vectors(N);
+    solver->compute_dot_product(N);
+
+    long long out = 0;
+    for (long long i = 1; i <= N; i++) {
+        out += i * i;
+    }
+    std::cout << "CPU Result (long long): " << out << "\n";
+
+    float float_out = 0;
+    for (int i = 1; i <= N; i++) {
+        float_out += (float)i * (float)i;
+    }
+    std::cout << "CPU Result (float): " << float_out << "\n";
+
+    double double_out = 0;
+    for (int i = 1; i <= N; i++) {
+        double_out += (double)i * (double)i;
+    }
+    std::cout << "CPU Result (double): " << double_out << "\n";
+
     switch_color_map("Viridis");
 
     std::cout << glGetString(GL_VERSION) << "\n";
@@ -151,7 +176,7 @@ void Application::render() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
 
-    shaders.perform_action_on_all([this](Shader& shader){
+    shaders.perform_action_on_all([this](AbstractShader& shader){
         shader.bind();
         shader.set_mat4x4("view_proj", this->camera->get_view_projection_matrix()); 
     });
@@ -573,6 +598,7 @@ void Application::run() {
             solver->advance_time();
             if (solver->has_numerical_instability()) {
                 solver->clear_values();
+                surface->clear_values();
                 settings.paused = true;
                 settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values and pausing...";
                 ImGui::OpenPopup("Error");
@@ -628,7 +654,7 @@ void Application::init_surface_from_pslg() {
         surface->init_from_PSLG(*pslg);
         solver->surface = surface;
         solver->init();
-        bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+        bvh = std::make_shared<BVH>(surface, settings.bvh_depth);
         switch_mode(InteractMode::Brush);
 
         clear_pslg();
@@ -654,7 +680,7 @@ void Application::init_surface_from_obj(const char* obj_path) {
         surface->init_from_obj(obj_path);
         solver->surface = surface;
         solver->init();
-        bvh = std::make_unique<BVH>(surface, settings.bvh_depth);
+        bvh = std::make_shared<BVH>(surface, settings.bvh_depth);
         switch_mode(InteractMode::Brush);
     } catch (std::runtime_error& e) {
         settings.error_message = e.what();

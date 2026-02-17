@@ -4,6 +4,9 @@
 
 #include "Solvers/Solver.hpp"
 
+#include <iostream>
+#include <iomanip>
+
 /**
  * Initialize the solver only if the associated surface is initialized.
  */
@@ -159,4 +162,54 @@ void Solver::map_vector_to_surface(Eigen::VectorXf vector) {
             surface->values[i] = 0.0f;
         }
     }
+}
+
+void Solver::setup_dot_product_vectors(int N) {
+    std::vector<float> input_data(N);
+    for (int i = 0; i < input_data.size(); i++) {
+        input_data[i] = (float)(i+1);
+    }
+
+    glGenBuffers(1, &buffer_input);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffer_input);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, input_data.size() * sizeof(float), input_data.data(), GL_STATIC_READ);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, buffer_input);
+
+    glGenBuffers(1, &buffer_result);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, buffer_result);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, input_data.size() * sizeof(float), NULL, GL_STATIC_READ);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, buffer_result);
+}
+
+void Solver::compute_dot_product(int N) {
+    compute_shader->bind();
+    compute_shader->set_int("buffer_size", N);
+    compute_shader->set_bool("first_pass", true);
+
+    int work_group_size = 1024;
+    int current_size = N;
+    float* ptr = new float[N];
+    int counter = 1;
+
+    while (current_size > 1) {
+        int num_work_groups = (current_size + (work_group_size - 1)) / work_group_size;
+
+        glDispatchCompute(num_work_groups, 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, N * sizeof(float), ptr);
+
+        std::cout << "Pass " << counter++ << " (" << num_work_groups << ")" << "\n";
+        for (int i = 0; i < num_work_groups; i++) {
+            if (ptr[i] != 0.0) {
+                std::cout << i << ": " << ptr[i] << ", ";
+            }
+        }
+        std::cout << "\n";
+
+        compute_shader->set_bool("first_pass", false);
+        current_size = num_work_groups;
+    }
+    std::cout << "GPU Result (float): " << std::setprecision(9) << ptr[0] << "\n";
+
+    delete ptr;
 }

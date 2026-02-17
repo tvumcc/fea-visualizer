@@ -110,7 +110,7 @@ public:
     std::shared_ptr<BVH> bvh;
 
     ResourceManager<Mesh> meshes;
-    ResourceManager<Shader> shaders;
+    ResourceManager<AbstractShader> shaders;
     ResourceManager<ColorMap> color_maps;
 
     std::string fem_mesh_directory = "assets/fem_meshes";
