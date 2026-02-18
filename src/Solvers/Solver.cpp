@@ -185,31 +185,19 @@ void Solver::compute_dot_product(int N) {
     compute_shader->bind();
     compute_shader->set_int("buffer_size", N);
     compute_shader->set_bool("first_pass", true);
+    compute_shader->set_int("stage", 0);
 
     int work_group_size = 1024;
     int current_size = N;
-    float* ptr = new float[N];
-    int counter = 1;
 
     while (current_size > 1) {
         int num_work_groups = (current_size + (work_group_size - 1)) / work_group_size;
 
         glDispatchCompute(num_work_groups, 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-        glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, N * sizeof(float), ptr);
 
-        std::cout << "Pass " << counter++ << " (" << num_work_groups << ")" << "\n";
-        for (int i = 0; i < num_work_groups; i++) {
-            if (ptr[i] != 0.0) {
-                std::cout << i << ": " << ptr[i] << ", ";
-            }
-        }
-        std::cout << "\n";
-
-        compute_shader->set_bool("first_pass", false);
         current_size = num_work_groups;
+        compute_shader->set_bool("first_pass", false);
+        compute_shader->set_int("current_size", current_size);
     }
-    std::cout << "GPU Result (float): " << std::setprecision(9) << ptr[0] << "\n";
-
-    delete ptr;
 }

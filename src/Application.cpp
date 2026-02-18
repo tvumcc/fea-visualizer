@@ -46,7 +46,9 @@ void Application::load_resources() {
     shaders.add("vertex_color", std::make_shared<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"));
     shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
     shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
+
     shaders.add("dot_product", std::make_shared<ComputeShader>("shaders/dot_product.glsl"));
+    shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
 
     // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same. (as well as the image icon file)
     color_maps.add("Viridis", std::make_shared<ColorMap>(
@@ -140,9 +142,7 @@ void Application::load() {
     switch_solver(SolverType::Wave);
     solver->compute_shader = static_pointer_cast<ComputeShader>(shaders.get("dot_product"));
 
-    int N = 100'000'000;
-    solver->setup_dot_product_vectors(N);
-    solver->compute_dot_product(N);
+    int N = 1'000'000;
 
     long long out = 0;
     for (long long i = 1; i <= N; i++) {
@@ -161,6 +161,9 @@ void Application::load() {
         double_out += (double)i * (double)i;
     }
     std::cout << "CPU Result (double): " << double_out << "\n";
+
+    solver->setup_dot_product_vectors(N);
+    solver->compute_dot_product(N);
 
     switch_color_map("Viridis");
 
