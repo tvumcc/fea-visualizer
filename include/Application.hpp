@@ -11,9 +11,11 @@
 #include "Utils/PSLG.hpp"
 #include "Utils/Surface.hpp"
 #include "Utils/ColorMap.hpp"
-#include "Solvers/Solver.hpp"
+#include "Utils/GPUConjGrad.hpp"
 #include "Utils/ResourceManager.hpp"
 #include "Utils/BVH.hpp"
+
+#include "Solvers/Solver.hpp"
 
 #include <memory>
 #include <filesystem>
@@ -108,6 +110,7 @@ public:
     std::shared_ptr<Surface> surface;
     std::shared_ptr<Solver> solver;
     std::shared_ptr<BVH> bvh;
+    std::shared_ptr<GPUConjGrad> gpu_cgm_solver;
 
     ResourceManager<Mesh> meshes;
     ResourceManager<AbstractShader> shaders;

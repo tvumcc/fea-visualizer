@@ -32,3 +32,34 @@ bool HeatSolver::has_numerical_instability() {
     }
     return false;
 }
+
+void HeatSolver::init_gpu_solver() {
+    unsigned int M = 0;
+    Eigen::SparseMatrix<float, Eigen::RowMajor> A = (mass_matrix / time_step) + (conductivity * stiffness_matrix);
+
+    std::vector<std::vector<float>> A_values;
+    std::vector<std::vector<unsigned int>> A_indices;
+
+    for (int i = 0; i < A.outerSize(); i++) {
+        std::vector<float> values;
+        std::vector<unsigned int> indices;
+
+        for (typename Eigen::SparseMatrix<float, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it) {
+            values.push_back(it.value());
+            indices.push_back(it.index());
+        }
+
+        M = std::max(M, static_cast<unsigned int>(values.size()));
+        A_values.push_back(values);
+        A_indices.push_back(indices);
+    }
+
+    gpu_cgm_solver = std::make_shared<GPUConjGrad>(surface->num_unknown_nodes(), M, surface->vertices.size(), idx_map);
+
+    gpu_cgm_solver->loadSparseMatrix(gpu_cgm_solver->A1, A_values, A_indices);
+}
+
+void HeatSolver::advance_time_gpu() {
+    // TODO: Load the known vector
+    gpu_cgm_solver->solve(gpu_cgm_solver->A1, gpu_cgm_solver->x1, gpu_cgm_solver->known);
+}

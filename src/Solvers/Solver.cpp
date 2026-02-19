@@ -36,6 +36,7 @@ void Solver::update_boundary_conditions() {
     }
     assemble();
     clear_values();
+    init_gpu_solver();
 }
 
 /**

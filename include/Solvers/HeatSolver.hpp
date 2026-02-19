@@ -15,4 +15,7 @@ public:
     void clear_values() override;
     void advance_time() override;
     bool has_numerical_instability() override;
+
+    void init_gpu_solver() override;
+    void advance_time_gpu() override;
 };
