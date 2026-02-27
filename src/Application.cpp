@@ -6,10 +6,6 @@
 
 #include "Application.hpp"
 #include "GLFW/glfw3.h"
-#include "Solvers/HeatSolver.hpp"
-#include "Solvers/WaveSolver.hpp"
-#include "Solvers/AdvectionDiffusionSolver.hpp"
-#include "Solvers/ReactionDiffusionSolver.hpp"
 #include "Utils/PSLG.hpp"
 
 #include <iostream>
@@ -47,8 +43,8 @@ void Application::load_resources() {
     shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
     shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
 
-    shaders.add("dot_product", std::make_shared<ComputeShader>("shaders/dot_product.glsl"));
-    shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
+    // shaders.add("dot_product", std::make_shared<ComputeShader>("shaders/dot_product.glsl"));
+    // shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
 
     // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same. (as well as the image icon file)
     color_maps.add("Viridis", std::make_shared<ColorMap>(
@@ -138,32 +134,10 @@ void Application::load() {
     surface = std::make_shared<Surface>();
     surface->wireframe_shader = static_pointer_cast<Shader>(shaders.get("wireframe"));
     surface->fem_mesh_shader = static_pointer_cast<Shader>(shaders.get("fem_mesh"));
+    
+    fem_ctx = std::make_shared<FEMContext>();
 
-    switch_solver(SolverType::Wave);
-    solver->compute_shader = static_pointer_cast<ComputeShader>(shaders.get("dot_product"));
-
-    int N = 1'000'000;
-
-    long long out = 0;
-    for (long long i = 1; i <= N; i++) {
-        out += i * i;
-    }
-    std::cout << "CPU Result (long long): " << out << "\n";
-
-    float float_out = 0;
-    for (int i = 1; i <= N; i++) {
-        float_out += (float)i * (float)i;
-    }
-    std::cout << "CPU Result (float): " << float_out << "\n";
-
-    double double_out = 0;
-    for (int i = 1; i <= N; i++) {
-        double_out += (double)i * (double)i;
-    }
-    std::cout << "CPU Result (double): " << double_out << "\n";
-
-    solver->setup_dot_product_vectors(N);
-    solver->compute_dot_product(N);
+    cpu_solver = std::make_shared<CPUSolver>(fem_ctx);
 
     switch_color_map("Viridis");
 
@@ -338,8 +312,8 @@ void Application::render_gui() {
                 break;
         }
     } else {
-        ImGui::Text(std::format("{} nodes", solver->surface->vertices.size()).c_str());
-        ImGui::Text(std::format("{} elements", solver->surface->triangles.size()).c_str());
+        ImGui::Text(std::format("{} nodes", surface->vertices.size()).c_str());
+        ImGui::Text(std::format("{} elements", surface->triangles.size()).c_str());
         ImGui::Separator();
 
         ImGui::Checkbox("Show Element Outlines", &settings.draw_surface_wireframe);
@@ -394,7 +368,7 @@ void Application::render_gui() {
         if (settings.pixel_discard_threshold != 0.0f) {
             ImGui::Text("Mesh Type");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            ImGui::Combo("##Mesh Type", &surface->mesh_type, "Open\0Closed\0Mirrored\0", ImGuiComboFlags_WidthFitPreview);
+            ImGui::Combo("##Mesh Type", (int*)&surface->mesh_type, "Open\0Closed\0Mirrored\0", ImGuiComboFlags_WidthFitPreview);
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                 ImGui::SetTooltip("Open: No new triangles are added\nClosed: New triangles are projected down onto the discard threshold\nMirrored: New triangles are mirrored across the discard threshold\n");
         }
@@ -402,11 +376,8 @@ void Application::render_gui() {
         if (surface->num_boundary_points != 0) {
             ImGui::Text("Boundary Conditions");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-            if (ImGui::Combo("##Boundary Conditions", &surface->boundary_condition, "Dirichlet\0Neumann\0", ImGuiComboFlags_WidthFitPreview)) {
-                std::cout << "updated bcs\n";
-                std::cout << surface->num_unknown_nodes() << "\n";
-                solver->update_boundary_conditions();
-                std::cout << surface->num_unknown_nodes() << "\n";
+            if (ImGui::Combo("##Boundary Conditions", (int*)&fem_ctx->boundary_condition, "Dirichlet\0Neumann\0", ImGuiComboFlags_WidthFitPreview)) {
+                fem_ctx->update_boundary_conditions();
             }
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                 ImGui::SetTooltip("Defines the behavior of nodes on the boundary.\nDirichlet: Boundary nodes will always be 0\nNeumann: The flux through boundary nodes is always 0\n");
@@ -416,20 +387,21 @@ void Application::render_gui() {
     if (surface->initialized) {
         ImGui::SeparatorText("Solver");
 
-        ImVec2 equation_viewer_size = ImVec2(ImGui::GetContentRegionAvail().x, settings.solver_equation_textures[settings.selected_solver].second.y + 15);
+        int equation_idx = static_cast<int>(fem_ctx->equation);
+
+        ImVec2 equation_viewer_size = ImVec2(ImGui::GetContentRegionAvail().x, settings.equation_textures[equation_idx].second.y + 15);
         ImGui::Dummy(ImVec2(0.0f, 5.0f));
         ImGui::BeginChild("##Equation Viewer", equation_viewer_size, false, ImGuiWindowFlags_HorizontalScrollbar);
-        ImGui::Image(settings.solver_equation_textures[settings.selected_solver].first, settings.solver_equation_textures[settings.selected_solver].second);
+        ImGui::Image(settings.equation_textures[equation_idx].first, settings.equation_textures[equation_idx].second);
         ImGui::EndChild();
 
         ImGui::Text("Equation");
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-        if (ImGui::BeginCombo("##Equation", settings.solvers[settings.selected_solver])) {
-            for (int i = 0; i < settings.solvers.size(); i++) {
-                const bool is_selected = (settings.selected_solver == i);
-                if (ImGui::Selectable(settings.solvers[i], is_selected)) {
-                    settings.selected_solver = i;
-                    switch_solver((SolverType)i);
+        if (ImGui::BeginCombo("##Equation", settings.equations[equation_idx])) {
+            for (int i = 0; i < settings.equations.size(); i++) {
+                const bool is_selected = (equation_idx == i);
+                if (ImGui::Selectable(settings.equations[i], is_selected)) {
+                    switch_equation((Equation)i);
                 }
 
                 if (is_selected)
@@ -453,48 +425,51 @@ void Application::render_gui() {
         if (ImGui::Button("Clear Solver", ImVec2(ImGui::GetContentRegionAvail().x, 0.0)))  clear_solver();
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             ImGui::SetTooltip("Reset all nodal values to 0");
-        switch ((SolverType)settings.selected_solver) {
-            case SolverType::Heat: {
+        switch (fem_ctx->equation) {
+            case Equation::Heat: {
+                auto params = std::static_pointer_cast<HeatParameters>(fem_ctx->parameters[Equation::Heat]);
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Heat Time Step", &((HeatSolver*)solver.get())->time_step, 0.005f, 0.25f); 
+                ImGui::SliderFloat("##Heat Time Step", &params->time_step, 0.005f, 0.25f); 
                 ImGui::Text("Diffusivity Constant (c)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Heat Diffusivity Constant (c)", &((HeatSolver*)solver.get())->conductivity, 0.005f, 0.25f);
+                ImGui::SliderFloat("##Heat Diffusivity Constant (c)", &params->conductivity, 0.005f, 0.25f);
             } break;
-            case SolverType::Wave: {
+            case Equation::Advection_Diffusion: {
+                auto params = std::static_pointer_cast<AdvectionDiffusionParameters>(fem_ctx->parameters[Equation::Advection_Diffusion]);
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Wave Time Step", &((WaveSolver*)solver.get())->time_step, 0.005f, 0.25f); 
-                ImGui::Text("Propagation Speed (c)");
-                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Wave Propagation Speed (c)", &((WaveSolver*)solver.get())->c, 0.005f, 0.25f);
-            } break;
-            case SolverType::Advection_Diffusion: {
-                AdvectionDiffusionSolver* advection_diffusion_solver = (AdvectionDiffusionSolver*)solver.get();
-                ImGui::Text("Time Step");
-                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Advection-Diffusion Time Step", &advection_diffusion_solver->time_step, 0.001f, 0.003f); 
+                ImGui::SliderFloat("##Advection-Diffusion Time Step", &params->time_step, 0.001f, 0.003f); 
                 ImGui::Text("Diffusivity Constant(c)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Advection-Diffusion Diffusivity Constant (c)", &((AdvectionDiffusionSolver*)solver.get())->c, 0.05f, 0.25f);
+                ImGui::SliderFloat("##Advection-Diffusion Diffusivity Constant (c)", &params->c, 0.05f, 0.25f);
                 ImGui::Text("Velocity (v)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                if (ImGui::SliderFloat3("##Advection-Diffusion Velocity (v)", advection_diffusion_solver->velocity.data(), -1.0f, 1.0f))
-                    advection_diffusion_solver->assemble();
+                if (ImGui::SliderFloat3("##Advection-Diffusion Velocity (v)", params->velocity.data(), -1.0f, 1.0f))
+                    fem_ctx->assemble_matrices();
             } break;
-            case SolverType::Reaction_Diffusion: {
+            case Equation::Wave: {
+                auto params = std::static_pointer_cast<WaveParameters>(fem_ctx->parameters[Equation::Wave]);
+                ImGui::Text("Time Step");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Wave Time Step", &params->time_step, 0.005f, 0.25f); 
+                ImGui::Text("Propagation Speed (c)");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Wave Propagation Speed (c)", &params->c, 0.005f, 0.25f);
+            } break;
+            case Equation::Reaction_Diffusion: {
+                auto params = std::static_pointer_cast<ReactionDiffusionParameters>(fem_ctx->parameters[Equation::Reaction_Diffusion]);
                 ImGui::Text("D_u = 0.08");
                 ImGui::Text("D_v = 0.04");
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Reaction-Diffusion Time Step", &((ReactionDiffusionSolver*)solver.get())->time_step, 0.001f, 0.010f); 
+                ImGui::SliderFloat("##Reaction-Diffusion Time Step", &params->time_step, 0.001f, 0.010f); 
                 ImGui::Text("Feed Rate (f)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Reaction-Diffusion Feed Rate (f)", &((ReactionDiffusionSolver*)solver.get())->feed_rate, 0.0f, 0.1f); 
+                ImGui::SliderFloat("##Reaction-Diffusion Feed Rate (f)", &params->feed_rate, 0.0f, 0.1f); 
                 ImGui::Text("Kill Rate (k)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Reaction-Diffusion Kill Rate (k)", &((ReactionDiffusionSolver*)solver.get())->kill_rate, 0.0f, 0.1f); 
+                ImGui::SliderFloat("##Reaction-Diffusion Kill Rate (k)", &params->kill_rate, 0.0f, 0.1f); 
             } break;
         }
     }
@@ -597,11 +572,10 @@ void Application::run() {
             pslg->pending_point.reset();
         if (settings.interact_mode == InteractMode::Brush && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS))
             brush(get_world_ray_from_mouse(), camera->get_camera_position(), settings.brush_strength);
-        if (solver->surface && !settings.paused) {
-            solver->advance_time();
-            if (solver->has_numerical_instability()) {
-                solver->clear_values();
-                surface->clear_values();
+        if (fem_ctx->surface && !settings.paused) {
+            cpu_solver->advance_time();
+            if (cpu_solver->has_numerical_instability()) {
+                clear_solver();
                 settings.paused = true;
                 settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values and pausing...";
                 ImGui::OpenPopup("Error");
@@ -642,7 +616,7 @@ void Application::clear_holes() {
     pslg->clear_holes();
 }
 void Application::clear_solver() {
-    solver->clear_values();
+    cpu_solver->clear_values();
     surface->clear_values();
 }
 void Application::delete_surface() {
@@ -650,13 +624,12 @@ void Application::delete_surface() {
 }
 void Application::init_surface_from_pslg() {
     surface->clear();
-    solver->surface = nullptr;
+    fem_ctx->surface = nullptr;
     bvh = nullptr;
 
     try {
         surface->init_from_PSLG(*pslg);
-        solver->surface = surface;
-        solver->init();
+        fem_ctx->init_from_surface(surface);
         bvh = std::make_shared<BVH>(surface, settings.bvh_depth);
         switch_mode(InteractMode::Brush);
 
@@ -681,8 +654,8 @@ void Application::init_surface_from_obj(const char* obj_path) {
 
     try {
         surface->init_from_obj(obj_path);
-        solver->surface = surface;
-        solver->init();
+        fem_ctx->init_from_surface(surface);
+        cpu_solver->clear_values();
         bvh = std::make_shared<BVH>(surface, settings.bvh_depth);
         switch_mode(InteractMode::Brush);
     } catch (std::runtime_error& e) {
@@ -690,35 +663,8 @@ void Application::init_surface_from_obj(const char* obj_path) {
         ImGui::OpenPopup("Error");
     }
 }
-void Application::switch_solver(SolverType new_solver) {
-    bool valid_new_solver = false;
-
-    switch (new_solver) {
-        case SolverType::Heat: 
-            solver = std::make_shared<HeatSolver>();
-            valid_new_solver = true;
-            break;
-        case SolverType::Wave: 
-            solver = std::make_shared<WaveSolver>();
-            valid_new_solver = true;
-            break;
-        case SolverType::Advection_Diffusion: 
-            solver = std::make_shared<AdvectionDiffusionSolver>();
-            valid_new_solver = true;
-            break;
-        case SolverType::Reaction_Diffusion:
-            solver = std::make_shared<ReactionDiffusionSolver>();
-            valid_new_solver = true;
-            break;
-    }
-
-    if (valid_new_solver) {
-        if (surface->initialized) {
-            solver->surface = surface;
-            solver->init();
-        }
-        settings.selected_solver = (int)new_solver;
-    }
+void Application::switch_equation(Equation new_equation) {
+    fem_ctx->equation = new_equation;
 }
 void Application::switch_color_map(const char* new_color_map) {
     for (int i = 0; i < settings.color_maps.size(); i++) {
@@ -734,7 +680,7 @@ void Application::switch_mode(InteractMode mode) {
         case InteractMode::Idle:
             pslg->clear();
             surface->clear();
-            solver->surface = nullptr;
+            fem_ctx->surface = nullptr;
             bvh = nullptr;
             break;
         case InteractMode::DrawPSLG:
@@ -763,7 +709,7 @@ void Application::export_to_ply() {
     nfdresult_t result = NFD_SaveDialog("ply", "export.ply", &out_path);
     if (result == NFD_CANCEL || result == NFD_ERROR) return;
     try {
-        surface->export_to_ply(out_path, settings.vertex_extrusion, settings.pixel_discard_threshold, static_cast<MeshType>(surface->mesh_type));
+        surface->export_to_ply(out_path, settings.vertex_extrusion, settings.pixel_discard_threshold, surface->mesh_type);
     } catch (std::runtime_error& e) {
         settings.error_message = e.what();
         ImGui::OpenPopup("Error");

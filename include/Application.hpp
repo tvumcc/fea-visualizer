@@ -4,18 +4,18 @@
 #include <GLFW/glfw3.h>
 #include <stb/stb_image.h>
 
-#include "Utils/Mesh.hpp"
-#include "Utils/Shader.hpp"
-#include "Utils/Camera.hpp"
-#include "Utils/GridInterface.hpp"
-#include "Utils/PSLG.hpp"
-#include "Utils/Surface.hpp"
-#include "Utils/ColorMap.hpp"
-#include "Utils/GPUConjGrad.hpp"
-#include "Utils/ResourceManager.hpp"
 #include "Utils/BVH.hpp"
+#include "Utils/Camera.hpp"
+#include "Utils/ColorMap.hpp"
+#include "Utils/GridInterface.hpp"
+#include "Utils/Mesh.hpp"
+#include "Utils/PSLG.hpp"
+#include "Utils/ResourceManager.hpp"
+#include "Utils/Shader.hpp"
+#include "Utils/Surface.hpp"
 
-#include "Solvers/Solver.hpp"
+#include "FEM/FEMContext.hpp"
+#include "FEM/CPUSolver.hpp"
 
 #include <memory>
 #include <filesystem>
@@ -26,13 +26,6 @@ enum class InteractMode {
     LoadMesh,
     AddHole,
     Brush,
-};
-
-enum class SolverType {
-    Heat = 0,
-    Wave,
-    Advection_Diffusion,
-    Reaction_Diffusion,
 };
 
 struct Settings {
@@ -48,9 +41,8 @@ struct Settings {
     float vertex_extrusion = 0.5f;
     float pixel_discard_threshold = 0.0f;
 
-    std::vector<std::pair<GLuint, ImVec2>> solver_equation_textures;
-    std::vector<const char*> solvers = {"Heat", "Wave", "Advection-Diffusion", "Reaction-Diffusion"};
-    int selected_solver = static_cast<int>(SolverType::Heat);
+    std::vector<std::pair<GLuint, ImVec2>> equation_textures;
+    std::vector<const char*> equations = {"Heat", "Wave", "Advection-Diffusion", "Reaction-Diffusion"};
 
     std::vector<std::pair<GLuint, ImVec2>> color_map_icon_textures;
     std::vector<const char*> color_maps;
@@ -64,10 +56,10 @@ struct Settings {
     }
 
     void init_equation_textures() {
-        for (int i = 0; i < solvers.size(); i++) {
+        for (int i = 0; i < equations.size(); i++) {
             GLuint texture;
             int width, height, channels;
-            unsigned char *data = stbi_load(std::format("assets/equations/{}_Equation.png", solvers[i]).c_str(), &width, &height, &channels, 0);
+            unsigned char *data = stbi_load(std::format("assets/equations/{}_Equation.png", equations[i]).c_str(), &width, &height, &channels, 0);
             glGenTextures(1, &texture);
             glBindTexture(GL_TEXTURE_2D, texture);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -75,7 +67,7 @@ struct Settings {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, channels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_2D);
             stbi_image_free(data);
-            solver_equation_textures.push_back({texture, ImVec2(width / 3, height / 3)});
+            equation_textures.push_back({texture, ImVec2(width / 3, height / 3)});
         }
     }
 
@@ -108,9 +100,9 @@ public:
     std::shared_ptr<GridInterface> grid_interface;
     std::shared_ptr<PSLG> pslg;
     std::shared_ptr<Surface> surface;
-    std::shared_ptr<Solver> solver;
+    std::shared_ptr<FEMContext> fem_ctx;
+    std::shared_ptr<CPUSolver> cpu_solver;
     std::shared_ptr<BVH> bvh;
-    std::shared_ptr<GPUConjGrad> gpu_cgm_solver;
 
     ResourceManager<Mesh> meshes;
     ResourceManager<AbstractShader> shaders;
@@ -137,7 +129,7 @@ public:
     void init_surface_from_pslg();
     void init_surface_from_obj();
     void init_surface_from_obj(const char* obj_path);
-    void switch_solver(SolverType new_solver);
+    void switch_equation(Equation new_equation);
     void switch_color_map(const char* new_color_map);
     void switch_mode(InteractMode mode);
     void export_to_ply();

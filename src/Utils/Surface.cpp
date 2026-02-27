@@ -313,7 +313,7 @@ void Surface::draw(bool wireframe) {
 }
 
 /**
- * Resets this surface by clearing all of the data associated with it.
+ * Resets this surface by clearing all the data associated with it.
  */
 void Surface::clear() {
     vertices.clear();
@@ -329,13 +329,6 @@ void Surface::clear() {
  */
 void Surface::clear_values() {
     values = std::vector<float>(vertices.size(), 0.0f);
-}
-
-/**
- * Returns the total number of vertices minus the number of vertices lying on the boundary of the domain.
- */
-int Surface::num_unknown_nodes() {
-    return vertices.size() - (static_cast<BoundaryCondition>(boundary_condition) == BoundaryCondition::Dirichlet ? num_boundary_points : 0);
 }
 
 /**

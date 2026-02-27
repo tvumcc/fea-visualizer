@@ -19,12 +19,22 @@ layout (std430, binding = 3) buffer SearchDirections {float d[];}; // Size of N
 layout (std430, binding = 4) buffer IndexMap {uint idx_map[];}; // Size of total_nodes (which equals N in the Neumann BC case)
 layout (std430, binding = 5) buffer SurfaceValues {float values[];}; // Size of total_nodes (which equals N in the Neumann BC case)
 
-layout (std430, binding = 6) buffer MatrixValues {float A[];}; // Size of N*M; The actual matrix data in ELL format 
-layout (std430, binding = 7) buffer MatrixIndices {uint A_indices[];}; // Size of N*M; The indices in ELL format
-layout (std430, binding = 8) buffer Vector {float x[];}; // Size of N; Can also mapped to a vertex buffer for the rendering pipeline
+layout (std430, binding = 6) buffer StiffnessMatrix {float stiffness[];};
+layout (std430, binding = 7) buffer MassMatrix {float mass[];};
+layout (std430, binding = 8) buffer AdvectionMatrix {float advection[];};
+layout (std430, binding = 9) buffer MatrixIndices {uint matrix_indices[];}; // Size of N*M; The indices in ELL format
+layout (std430, binding = 10) buffer Vector {float x[];}; // Size of N
 
 uniform bool first_pass;
 uniform int stage;
+
+uniform int solver;
+uniform float time_step;
+uniform float c;
+uniform float Du;
+uniform float Dv;
+uniform float kill_rate;
+uniform float feed_rate;
 
 shared float shared_data[1024];
 
@@ -50,8 +60,28 @@ void parallel_reduction(float result) {
 float Ad_i() {
     float Ad_i = 0.0;
     for (int i = 0; i < M; i++) {
-        int idx = A_indices[globalID * M + i];
-        if (idx != -1) Ad_i += A[globalID * M + i] * d[idx];
+        int mat_idx = globalID * M + i;
+        int col_idx = indices[mat_idx];
+
+        if (col_idx != -1) {
+            switch (solver) {
+                case 0: // Heat Equation
+                    Ad_i += d[col_idx] * ((mass[mat_idx] / time_step) + c * stiffness[mat_idx]);
+                    break;
+                case 1: // Advection-Diffusion Equation
+                    Ad_i += d[col_idx] * ((mass[mat_idx] / time_step) + (c * stiffness[mat_idx]) - advection[mat_idx]);
+                    break;
+                case 2: // Wave Equation
+                    Ad_i += d[col_idx] * ((mass[mat_idx] / time_step) + (c * c * stiffness[mat_idx] * time_step));
+                    break;
+                case 3: // Gray-Scott Reaction-Diffusion Equation (Step 1)
+                    Ad_i += d[col_idx] * ((mass[mat_idx] / time_step) + (Du * stiffness[mat_idx]));
+                    break;
+                case 4: // Gray-Scott Reaction-Diffusion Equation (Step 2)
+                    Ad_i += d[col_idx] * ((mass[mat_idx] / time_step) + (Dv * stiffness[mat_idx]));
+                    break;
+            }
+        }
     }
     return Ad_i;
 }
