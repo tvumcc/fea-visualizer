@@ -1,12 +1,13 @@
 #include "FEM/GPUSolver.hpp"
 
+#include <iostream>
+
 GPUSolver::GPUSolver(std::shared_ptr<FEMContext> fem_ctx) {
     this->fem_ctx = fem_ctx;
-
-    init_buffers();
 }
 
 GPUSolver::~GPUSolver() {
+    std::cout << "Destroying Buffers\n";
     glDeleteBuffers(1, &this->state);
     glDeleteBuffers(1, &this->known);
     glDeleteBuffers(1, &this->residuals);
@@ -22,7 +23,15 @@ GPUSolver::~GPUSolver() {
     glDeleteBuffers(1, &this->v);
 }
 
+void GPUSolver::init() {
+    init_buffers();
+    load_matrices();
+    load_state();
+    bind_buffers();
+}
+
 void GPUSolver::init_buffers() {
+    std::cout << "Initializing Buffers\n"; 
     glGenBuffers(1, &this->state);
     glGenBuffers(1, &this->known);
     glGenBuffers(1, &this->residuals);
@@ -37,40 +46,44 @@ void GPUSolver::init_buffers() {
     glGenBuffers(1, &this->u);
     glGenBuffers(1, &this->v);
 
+    std::vector<float> zeros = std::vector<float>(fem_ctx->num_unknowns() + 7, 0.0f);
+
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->state);
-    glBufferStorage(GL_SHADER_STORAGE_BUFFER, (fem_ctx->num_unknowns() + 7) * sizeof(float), NULL, GL_DYNAMIC_STORAGE_BIT | GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT);
+    glBufferStorage(GL_SHADER_STORAGE_BUFFER, (fem_ctx->num_unknowns() + 7) * sizeof(float), zeros.data(), GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->known);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), NULL, GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), zeros.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->residuals);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), NULL, GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), zeros.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->search_directions);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), NULL, GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), zeros.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->idx_map);
     glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_nodes() * sizeof(unsigned int), fem_ctx->idx_map.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->u);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), NULL, GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), zeros.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->v);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), NULL, GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), zeros.data(), GL_STATIC_DRAW);
 }
 
-void GPUSolver::bind_buffers(unsigned int vector_buffer) {
+void GPUSolver::bind_buffers() {
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::State), this->state);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::Known), this->known);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::Residuals), this->residuals);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::SearchDirections), this->idx_map);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::SearchDirections), this->search_directions);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::IndexMap), this->idx_map);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::SurfaceValues), fem_ctx->surface->get_value_buffer());
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::StiffnessMatrix), this->stiffness_matrix);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::MassMatrix), this->mass_matrix);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::AdvectionMatrix), this->advection_matrix);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::MatrixIndices), this->matrix_indices);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::Vector), vector_buffer);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::VectorU), this->u);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, static_cast<unsigned int>(BindingPoint::VectorV), this->v);
 }
 
 void GPUSolver::load_state() {
@@ -84,16 +97,36 @@ void GPUSolver::load_state() {
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 4 * sizeof(float), 3 * sizeof(unsigned int), data);
 }
 
+void GPUSolver::load_vectors() {
+    
+}
+
 void GPUSolver::load_matrices() {
+    std::cout << "Initializing Matrices\n"; 
     unsigned int N = fem_ctx->num_unknowns();
     unsigned int M = fem_ctx->num_max_nonzeros_per_row();
 
-    std::vector<unsigned int> indices_buffer = std::vector<unsigned int>(N * M, 0);
-    std::vector<float> stiffness_buffer = std::vector<float>(N * M, 0);
-    std::vector<float> mass_buffer = std::vector<float>(N * M, 0);
-    std::vector<float> advection_buffer = std::vector<float>(N * M, 0);
+    std::vector<unsigned int> indices_buffer = std::vector<unsigned int>(N * M, -1);
+    std::vector<float> stiffness_buffer = std::vector<float>(N * M, 0.0f);
+    std::vector<float> mass_buffer = std::vector<float>(N * M, 0.0f);
+    std::vector<float> advection_buffer = std::vector<float>(N * M, 0.0f);
 
     // TODO: Populate the buffers
+    Eigen::SparseMatrix<float, Eigen::RowMajor> A = fem_ctx->stiffness_matrix;
+
+    for (int i = 0; i < A.outerSize(); i++) {
+        int j = 0; 
+        for (Eigen::SparseMatrix<float, Eigen::RowMajor>::InnerIterator it(A, i); it; ++it, j++) {
+            unsigned int row = i;
+            unsigned int col = it.index();
+            unsigned int buffer_idx = M * i + j;
+
+            indices_buffer[buffer_idx] = col;
+            stiffness_buffer[buffer_idx] = fem_ctx->stiffness_matrix.coeff(row, col);
+            mass_buffer[buffer_idx] = fem_ctx->mass_matrix.coeff(row, col);
+            advection_buffer[buffer_idx] = fem_ctx->advection_matrix.coeff(row, col);
+        }
+    }
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, matrix_indices);
     glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(unsigned int), indices_buffer.data(), GL_STATIC_READ);
@@ -108,10 +141,30 @@ void GPUSolver::load_matrices() {
     glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(float), advection_buffer.data(), GL_STATIC_READ);
 }
 
+void GPUSolver::set_uniforms(int brush_idx, float brush_strength) {
+    cgm_helper_compute_shader->bind();
+    cgm_helper_compute_shader->set_int("brush_idx", brush_idx);
+    cgm_helper_compute_shader->set_float("brush_strength", brush_strength);
+}
+
 void GPUSolver::advance_time() {
+
     switch (fem_ctx->equation) {
         case Equation::Heat: {
+            auto params = std::static_pointer_cast<HeatParameters>(fem_ctx->parameters[Equation::Heat]);
 
+            cgm_helper_compute_shader->bind();
+            cgm_helper_compute_shader->set_int("solver", 0);
+            cgm_helper_compute_shader->set_float("time_step", params->time_step);
+            cgm_helper_compute_shader->set_float("c", params->conductivity);
+
+            cgm_helper_compute_shader->set_int("stage", 0);
+            glDispatchCompute(fem_ctx->num_nodes(), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+            cgm_helper_compute_shader->set_int("stage", 1);
+            glDispatchCompute(fem_ctx->num_unknowns(), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         } break;
 
         case Equation::Advection_Diffusion: {

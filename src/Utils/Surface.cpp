@@ -289,8 +289,6 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion, float
  */
 void Surface::draw(bool wireframe) {
     if (initialized) {
-        load_value_buffer();
-
         // Draw Colored Surface
         fem_mesh_shader->bind();
         fem_mesh_shader->set_mat4x4("model", glm::mat4(1.0f));

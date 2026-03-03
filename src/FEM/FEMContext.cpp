@@ -50,6 +50,7 @@ void FEMContext::assemble_matrices() {
     assemble_mass_matrix();
     assemble_advection_matrix(velocity);
     this->max_row_nonzeros = compute_max_row_nonzeros();
+    std::cout << this->max_row_nonzeros << "\n";
 }
 
 /**

@@ -16,6 +16,7 @@
 
 #include "FEM/FEMContext.hpp"
 #include "FEM/CPUSolver.hpp"
+#include "FEM/GPUSolver.hpp"
 
 #include <memory>
 #include <filesystem>
@@ -102,6 +103,7 @@ public:
     std::shared_ptr<Surface> surface;
     std::shared_ptr<FEMContext> fem_ctx;
     std::shared_ptr<CPUSolver> cpu_solver;
+    std::shared_ptr<GPUSolver> gpu_solver;
     std::shared_ptr<BVH> bvh;
 
     ResourceManager<Mesh> meshes;
@@ -135,7 +137,7 @@ public:
     void export_to_ply();
     void load_stencil_image();
 
-    void brush(glm::vec3 world_ray, glm::vec3 origin, float value);
+    int brush(glm::vec3 world_ray, glm::vec3 origin, float value);
     glm::vec3 get_world_ray_from_mouse();
     glm::vec3 get_mouse_to_grid_plane_point();
 private:

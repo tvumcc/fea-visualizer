@@ -7,23 +7,24 @@ layout (std430, binding = 0) buffer State {
     float r_0_norm;
     float d_iA_norm;
 
-    uint N;
-    uint M;
-    uint total_nodes;
+    int N;
+    int M;
+    int total_nodes;
     float result[];
 };
 
 layout (std430, binding = 1) buffer Known {float b[];}; // Size of N
 layout (std430, binding = 2) buffer Residuals {float r[];}; // Size of N
 layout (std430, binding = 3) buffer SearchDirections {float d[];}; // Size of N
-layout (std430, binding = 4) buffer IndexMap {uint idx_map[];}; // Size of total_nodes (which equals N in the Neumann BC case)
+layout (std430, binding = 4) buffer IndexMap {int idx_map[];}; // Size of total_nodes (which equals N in the Neumann BC case)
 layout (std430, binding = 5) buffer SurfaceValues {float values[];}; // Size of total_nodes (which equals N in the Neumann BC case)
 
 layout (std430, binding = 6) buffer StiffnessMatrix {float stiffness[];};
 layout (std430, binding = 7) buffer MassMatrix {float mass[];};
 layout (std430, binding = 8) buffer AdvectionMatrix {float advection[];};
-layout (std430, binding = 9) buffer MatrixIndices {uint matrix_indices[];}; // Size of N*M; The indices in ELL format
-layout (std430, binding = 10) buffer Vector {float x[];}; // Size of N
+layout (std430, binding = 9) buffer MatrixIndices {int matrix_indices[];}; // Size of N*M; The indices in ELL format
+layout (std430, binding = 10) buffer VectorU {float u[];}; // Size of N
+layout (std430, binding = 11) buffer VectorV {float v[];}; // Size of N
 
 uniform bool first_pass;
 uniform int stage;
@@ -38,11 +39,11 @@ uniform float feed_rate;
 
 shared float shared_data[1024];
 
-void parallel_reduction(float result) {
+void parallel_reduction(float res) {
     int globalID = int(gl_GlobalInvocationID.x);
     int localID = int(gl_LocalInvocationID.x);
 
-    shared_data[localID] = result;
+    shared_data[localID] = res;
     barrier();
 
     for (int i = int(gl_WorkGroupSize.x) / 2; i > 0; i >>= 1) {
@@ -60,8 +61,8 @@ void parallel_reduction(float result) {
 float Ad_i() {
     float Ad_i = 0.0;
     for (int i = 0; i < M; i++) {
-        int mat_idx = globalID * M + i;
-        int col_idx = indices[mat_idx];
+        int mat_idx = int(gl_GlobalInvocationID.x) * M + i;
+        int col_idx = matrix_indices[mat_idx];
 
         if (col_idx != -1) {
             switch (solver) {
@@ -101,10 +102,10 @@ void main() {
                 parallel_reduction(first_pass ? d[globalID] * Ad_i() : result[globalID]);
                 d_iA_norm = result[0];
             } break;
-            case 2: { // Update x and r
+            case 2: { // Update u and r
                 float alpha = r_i_norm / d_iA_norm;
 
-                x[globalID] = x[globalID] + alpha * d[globalID];
+                u[globalID] = u[globalID] + alpha * d[globalID];
                 r[globalID] = r[globalID] - alpha * Ad_i();
             } break;
             case 3: { // Calculate dot(r_(i+1), r_(i+1))

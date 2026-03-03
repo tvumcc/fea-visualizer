@@ -15,13 +15,14 @@ enum class BindingPoint {
     MassMatrix,
     AdvectionMatrix,
     MatrixIndices,
-    Vector,
+    VectorU,
+    VectorV,
 };
 
 class GPUSolver : public Solver {
 public:
     std::shared_ptr<ComputeShader> cgm_compute_shader;
-    std::shared_ptr<ComputeShader> loader_compute_shader;
+    std::shared_ptr<ComputeShader> cgm_helper_compute_shader;
 
     GPUSolver(std::shared_ptr<FEMContext> fem_ctx);
     ~GPUSolver();
@@ -29,6 +30,9 @@ public:
     void advance_time() override;
     void clear_values() override;
     bool has_numerical_instability() override;
+
+    void init();
+    void GPUSolver::set_uniforms(int brush_idx, float brush_strength);
 private:
     unsigned int state;
     unsigned int known;
@@ -45,8 +49,9 @@ private:
     unsigned int v;
 
     void init_buffers();
-    void bind_buffers(unsigned int vector_buffer);
+    void bind_buffers();
 
     void load_state();
+    void load_vectors();
     void load_matrices();
 };

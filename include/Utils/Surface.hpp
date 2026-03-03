@@ -54,6 +54,7 @@ public:
     void init_from_obj(const char* file_path);
     void export_to_ply(const char* file_path, float vertex_extrusion = 0.25f, float threshold = 0.0f, MeshType mesh_type = MeshType::Open);
 
+    void load_value_buffer();
     void draw(bool wireframe);
     void clear();
     void clear_values();
@@ -63,6 +64,5 @@ private:
     unsigned int vertex_buffer, value_buffer, normal_buffer, element_buffer, vertex_array;
 
     void load_buffers();
-    void load_value_buffer();
     void perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes, float triangle_area);
 };

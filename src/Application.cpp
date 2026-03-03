@@ -43,8 +43,8 @@ void Application::load_resources() {
     shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
     shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
 
-    // shaders.add("dot_product", std::make_shared<ComputeShader>("shaders/dot_product.glsl"));
-    // shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
+    shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
+    shaders.add("cgm_helper", std::make_shared<ComputeShader>("shaders/cgm_helper.glsl"));
 
     // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same. (as well as the image icon file)
     color_maps.add("Viridis", std::make_shared<ColorMap>(
@@ -138,6 +138,9 @@ void Application::load() {
     fem_ctx = std::make_shared<FEMContext>();
 
     cpu_solver = std::make_shared<CPUSolver>(fem_ctx);
+    gpu_solver = std::make_shared<GPUSolver>(fem_ctx);
+    gpu_solver->cgm_compute_shader = static_pointer_cast<ComputeShader>(shaders.get("cgm"));
+    gpu_solver->cgm_helper_compute_shader = static_pointer_cast<ComputeShader>(shaders.get("cgm_helper"));
 
     switch_color_map("Viridis");
 
@@ -566,20 +569,24 @@ void Application::run() {
         if (gui_visible)
             ImGui::Begin("Finite Element Visualizer", 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | (!gui_visible ? ImGuiWindowFlags_NoScrollWithMouse : 0));
 
+        int brush_idx = -1;
+
         if (settings.interact_mode == InteractMode::DrawPSLG)
             pslg->set_pending_point(get_mouse_to_grid_plane_point());
         if (ImGui::GetIO().WantCaptureMouse)
             pslg->pending_point.reset();
         if (settings.interact_mode == InteractMode::Brush && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS))
-            brush(get_world_ray_from_mouse(), camera->get_camera_position(), settings.brush_strength);
+            brush_idx = brush(get_world_ray_from_mouse(), camera->get_camera_position(), settings.brush_strength);
         if (fem_ctx->surface && !settings.paused) {
-            cpu_solver->advance_time();
-            if (cpu_solver->has_numerical_instability()) {
-                clear_solver();
-                settings.paused = true;
-                settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values and pausing...";
-                ImGui::OpenPopup("Error");
-            }
+            gpu_solver->set_uniforms(brush_idx, settings.brush_strength);
+            gpu_solver->advance_time();
+            // cpu_solver->advance_time();
+            // if (cpu_solver->has_numerical_instability()) {
+            //     clear_solver();
+            //     settings.paused = true;
+            //     settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values and pausing...";
+            //     ImGui::OpenPopup("Error");
+            // }
         }
 
         if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
@@ -591,6 +598,9 @@ void Application::run() {
 
         if (gui_visible)
             render_gui();
+        if (surface->initialized) {
+            // surface->load_value_buffer();
+        }
         render();
         if (gui_visible)
             ImGui::End();
@@ -630,6 +640,7 @@ void Application::init_surface_from_pslg() {
     try {
         surface->init_from_PSLG(*pslg);
         fem_ctx->init_from_surface(surface);
+        gpu_solver->init();
         bvh = std::make_shared<BVH>(surface, settings.bvh_depth);
         switch_mode(InteractMode::Brush);
 
@@ -656,6 +667,7 @@ void Application::init_surface_from_obj(const char* obj_path) {
         surface->init_from_obj(obj_path);
         fem_ctx->init_from_surface(surface);
         cpu_solver->clear_values();
+        gpu_solver->init();
         bvh = std::make_shared<BVH>(surface, settings.bvh_depth);
         switch_mode(InteractMode::Brush);
     } catch (std::runtime_error& e) {
@@ -731,11 +743,11 @@ void Application::load_stencil_image() {
  * @param origin The origin of the world ray.
  * @param value The value to set each of the nodal values to. 
  */
-void Application::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
+int Application::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
     RayTriangleIntersection intersection = bvh->ray_triangle_intersection(origin, world_ray);
+    int point_idx = -1;
 
     if (intersection.tri_idx != -1) {
-        int point_idx = -1;
         float min_point_dist = 0.0f;
         for (int i = 0; i < 3; i++) {
             float dist = glm::distance(surface->vertices[surface->triangles[intersection.tri_idx][i]], intersection.point);
@@ -749,6 +761,8 @@ void Application::brush(glm::vec3 world_ray, glm::vec3 origin, float value) {
             surface->values[surface->triangles[intersection.tri_idx][point_idx]] = value;
         }
     }
+
+    return point_idx != -1 ? surface->triangles[intersection.tri_idx][point_idx] : -1;
 }
 
 /**
