@@ -2,9 +2,9 @@
 layout (local_size_x = 1024) in;
 
 layout (std430, binding = 0) buffer State {
+    float r_0_norm;
     float r_i_norm;
     float r_i1_norm;
-    float r_0_norm;
     float d_iA_norm;
 
     int N;
@@ -29,7 +29,7 @@ layout (std430, binding = 11) buffer VectorV {float v[];}; // Size of N
 uniform bool first_pass;
 uniform int stage;
 
-uniform int solver;
+uniform int equation;
 uniform float time_step;
 uniform float c;
 uniform float Du;
@@ -43,6 +43,13 @@ void parallel_reduction(float res) {
     int globalID = int(gl_GlobalInvocationID.x);
     int localID = int(gl_LocalInvocationID.x);
 
+    if (globalID < N) {
+        if (!first_pass) {
+            res = result[globalID];
+        }
+    } else {
+        res = 0.0;
+    }
     shared_data[localID] = res;
     barrier();
 
@@ -65,7 +72,7 @@ float Ad_i() {
         int col_idx = matrix_indices[mat_idx];
 
         if (col_idx != -1) {
-            switch (solver) {
+            switch (equation) {
                 case 0: // Heat Equation
                     Ad_i += d[col_idx] * ((mass[mat_idx] / time_step) + c * stiffness[mat_idx]);
                     break;
@@ -91,34 +98,32 @@ void main() {
     int globalID = int(gl_GlobalInvocationID.x);
     int localID = int(gl_LocalInvocationID.x);
 
-    if (globalID < N) {
-        switch (stage) {
-            case 0: { // Calculate dot(r_i, r_i), Store in r_i_norm (Only occurs on the first iteration of CGM)
-                parallel_reduction(first_pass ? r[globalID] * r[globalID] : result[globalID]);
-                r_i_norm = result[0];
-                r_0_norm = r_i_norm;
-            } break;
-            case 1: { // Calculate dot(d_i, A * d_i), Store in d_iA_norm
-                parallel_reduction(first_pass ? d[globalID] * Ad_i() : result[globalID]);
-                d_iA_norm = result[0];
-            } break;
-            case 2: { // Update u and r
-                float alpha = r_i_norm / d_iA_norm;
+    switch (stage) {
+        case 0: { // Calculate dot(r_i, r_i), Store in r_i_norm (Only occurs on the first iteration of CGM)
+            parallel_reduction(r[globalID] * r[globalID]);
+            r_i_norm = result[0];
+            r_0_norm = r_i_norm;
+        } break;
+        case 1: { // Calculate dot(d_i, A * d_i), Store in d_iA_norm
+            parallel_reduction(d[globalID] * Ad_i());
+            d_iA_norm = result[0];
+        } break;
+        case 2: { // Update u and r
+            float alpha = r_i_norm / d_iA_norm;
 
-                u[globalID] = u[globalID] + alpha * d[globalID];
-                r[globalID] = r[globalID] - alpha * Ad_i();
-            } break;
-            case 3: { // Calculate dot(r_(i+1), r_(i+1))
-                parallel_reduction(first_pass ? r[globalID] * r[globalID] : result[globalID]);
-                r_i1_norm = result[0];
-            } break;
-            case 4: { // Use the Gram-Schimdt constant to find the next search direction
-                float gram_schimdt_constant = r_i1_norm / r_i_norm;            
-                
-                d[globalID] = r[globalID] + gram_schimdt_constant * d[globalID];
+            u[globalID] = u[globalID] + alpha * d[globalID];
+            r[globalID] = r[globalID] - alpha * Ad_i();
+        } break;
+        case 3: { // Calculate dot(r_(i+1), r_(i+1))
+            parallel_reduction(r[globalID] * r[globalID]);
+            r_i1_norm = result[0];
+        } break;
+        case 4: { // Use the Gram-Schmidt constant to find the next search direction
+            float gram_schimdt_constant = r_i1_norm / r_i_norm;
 
-                r_i_norm = r_i1_norm;
-            } break;
-        }
+            d[globalID] = r[globalID] + gram_schimdt_constant * d[globalID];
+
+            r_i_norm = r_i1_norm;
+        } break;
     }
 }

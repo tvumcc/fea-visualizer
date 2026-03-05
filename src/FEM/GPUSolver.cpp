@@ -49,7 +49,8 @@ void GPUSolver::init_buffers() {
     std::vector<float> zeros = std::vector<float>(fem_ctx->num_unknowns() + 7, 0.0f);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->state);
-    glBufferStorage(GL_SHADER_STORAGE_BUFFER, (fem_ctx->num_unknowns() + 7) * sizeof(float), zeros.data(), GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT);
+    glBufferStorage(GL_SHADER_STORAGE_BUFFER, (fem_ctx->num_unknowns() + 7) * sizeof(float), zeros.data(), GL_DYNAMIC_STORAGE_BIT | GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+    residual_norm_map = static_cast<float*>(glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, 3 * sizeof(float), GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT));
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->known);
     glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), zeros.data(), GL_STATIC_DRAW);
@@ -147,6 +148,25 @@ void GPUSolver::set_uniforms(int brush_idx, float brush_strength) {
     cgm_helper_compute_shader->set_float("brush_strength", brush_strength);
 }
 
+void GPUSolver::dot_product(int stage) {
+    bind_buffers();
+    int work_group_size = 1024;
+    int current_size = fem_ctx->num_unknowns();
+    cgm_compute_shader->bind();
+    cgm_compute_shader->set_int("stage", stage);
+    cgm_compute_shader->set_bool("first_pass", true);
+
+    while (current_size > 1) {
+        // This math is to ensure that there are enough work groups
+        int num_work_groups = (current_size + (work_group_size - 1)) / work_group_size;
+        glDispatchCompute(num_work_groups, 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+        cgm_compute_shader->set_bool("first_pass", false);
+        current_size = num_work_groups;
+    }
+}
+
 void GPUSolver::advance_time() {
 
     switch (fem_ctx->equation) {
@@ -154,15 +174,86 @@ void GPUSolver::advance_time() {
             auto params = std::static_pointer_cast<HeatParameters>(fem_ctx->parameters[Equation::Heat]);
 
             cgm_helper_compute_shader->bind();
-            cgm_helper_compute_shader->set_int("solver", 0);
+            cgm_helper_compute_shader->set_int("equation", 0);
             cgm_helper_compute_shader->set_float("time_step", params->time_step);
             cgm_helper_compute_shader->set_float("c", params->conductivity);
-
+            
+            // Map surface to solution vector and process brush (# invocations = total_nodes)
             cgm_helper_compute_shader->set_int("stage", 0);
             glDispatchCompute(fem_ctx->num_nodes(), 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
+            // Initialize vectors (# invocations = N)
             cgm_helper_compute_shader->set_int("stage", 1);
+            glDispatchCompute(fem_ctx->num_unknowns(), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+            // Conjugate Gradient Method
+            cgm_compute_shader->bind();
+            cgm_compute_shader->set_int("equation", 0); 
+            cgm_compute_shader->set_float("time_step", params->time_step);
+            cgm_compute_shader->set_float("c", params->conductivity);
+
+            float& r_0_norm = residual_norm_map[0];
+            float& r_i_norm = residual_norm_map[1];
+            float epsilon = 1e-6;
+
+            // Stage 0: Calculate dot(r_i, r_i), Store in r_i_norm (Only occurs on the first iteration of CGM)
+            dot_product(0);
+
+            std::vector<float> norms(8);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->state);
+            glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, 8 * sizeof(float), norms.data());
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+            for (int i = 0; i < 8; i++) {
+                if (i < 5 || i == 7) {
+                    std::cout << i << ": " << norms[i] << ", ";
+                } else {
+                    std::cout << i << ": " << std::bit_cast<int>(norms[i]) << ", ";
+                }
+            }
+            std::cout << "\n";
+
+            std::vector<float> r(fem_ctx->num_unknowns());
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->residuals);
+            glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, fem_ctx->num_unknowns() * sizeof(float), r.data());
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+            float dp = 0.0f;
+            for (int i = 0; i < r.size(); i++) {
+                dp += r[i] * r[i];
+            }
+
+            std::cout << r_0_norm << ", " << r_i_norm << " " << (r_i_norm - epsilon * r_0_norm) << " " << dp << "\n";
+
+            // while (r_i_norm - epsilon * r_0_norm > 1e-8) {
+            //     // Stage 1: Calculate dot(d_i, A * d_i), Store in d_iA_norm
+            //     dot_product(1);
+
+            //     // Stage 2: Update u and r
+            //     cgm_compute_shader->set_int("stage", 2);
+            //     glDispatchCompute(fem_ctx->num_unknowns(), 1, 1);
+            //     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+            //     // Stage 3: Calculate dot(r_(i+1), r_(i+1))
+            //     dot_product(3);
+
+            //     // Stage 4: Use the Gram-Schmidt constant to find the next search direction
+            //     cgm_compute_shader->set_int("stage", 4);
+            //     glDispatchCompute(fem_ctx->num_unknowns(), 1, 1);
+            //     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            // }
+
+            // cgm_helper_compute_shader->bind();
+
+            // // Wave Only:
+            // cgm_helper_compute_shader->set_int("stage", 2);
+            // glDispatchCompute(fem_ctx->num_unknowns(), 1, 1);
+            // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+            // Map solution vector to surface (# invocations = total_nodes)
+            cgm_helper_compute_shader->set_int("stage", 3);
             glDispatchCompute(fem_ctx->num_unknowns(), 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         } break;

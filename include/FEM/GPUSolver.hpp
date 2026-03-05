@@ -48,10 +48,14 @@ private:
     unsigned int u;
     unsigned int v;
 
+    float* residual_norm_map;
+
     void init_buffers();
     void bind_buffers();
 
     void load_state();
     void load_vectors();
     void load_matrices();
+
+    void dot_product(int stage);
 };
