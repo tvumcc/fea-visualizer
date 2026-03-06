@@ -45,7 +45,7 @@ void main() {
 
     switch (stage) {
         case 0: { // Map surface to solution vector and process brush (# invocations = total_nodes)
-            // if (globalID < total_nodes) {
+            if (globalID < total_nodes) {
                 if (globalID == brush_idx) {
                     values[globalID] = brush_strength;
                 }
@@ -58,13 +58,13 @@ void main() {
                         break;
                     case 3: // Gray-Scott Reaction-Diffusion Equation (Step 1)
                     case 4: // Gray-Scott Reaction-Diffusion Equation (Step 2)
-                        v[idx_map[globalID]] = values[globalID];
+                        if (idx_map[globalID] != -1) v[idx_map[globalID]] = values[globalID];
                         break;
                 }
-            // }
+            }
         } break;
         case 1: { // Initialize vectors (# invocations = N)
-            // if (globalID < N) {
+            if (globalID < N) {
                 float b_i = 0.0;
                 float Ax_i = 0.0;
                 for (int i = 0; i < M; i++) {
@@ -86,7 +86,7 @@ void main() {
                                 Ax_i += v[col_idx] * (mass[mat_idx] / time_step + c * c * stiffness[mat_idx] * time_step);
                             } break;
                             case 3: { // Gray-Scott Reaction-Diffusion Equation (Step 1)
-                                b_i += u[col_idx] * (mass[mat_idx] / time_step) - u[col_idx] * v[col_idx] * v[col_idx] + feed_rate * (1 - u[col_idx]);
+                                b_i += u[col_idx] * (mass[mat_idx] / time_step) - u[col_idx] * v[col_idx] * v[col_idx] + feed_rate * (1.0 - u[col_idx]);
                                 Ax_i += u[col_idx] * (mass[mat_idx] / time_step + Du * stiffness[mat_idx]);
                             } break;
                             case 4: { // Gray-Scott Reaction-Diffusion Equation (Step 2)
@@ -104,7 +104,7 @@ void main() {
                 r_i_norm = 0.0;
                 r_i1_norm = 0.0;
                 d_iA_norm = 0.0;
-            // }
+            }
         } break;
         case 2: { // Wave Equation update (# invocations = N)
             switch (equation) {
@@ -116,7 +116,7 @@ void main() {
             }
         } break;
         case 3: { // Map solution vector to surface (# invocations = total_nodes)
-            // if (globalID < total_nodes) {
+            if (globalID < total_nodes) {
                 switch (equation) {
                     case 0: // Heat Equation
                     case 1: // Advection-Diffusion Equation
@@ -132,7 +132,19 @@ void main() {
                 if (globalID == brush_idx) {
                     values[globalID] = brush_strength;
                 }
-            // }
+            }
+        } break;
+        case 4: { // Reset all nodal values to 0
+            if (globalID < N) {
+                values[globalID] = 0.0;
+                u[globalID] = 0.0;
+                v[globalID] = 0.0;
+                r[globalID] = 0.0;
+                d[globalID] = 0.0;
+                b[globalID] = 0.0;
+                r_0_norm = 0.0;
+                r_i_norm = 0.0;
+            }
         } break;
     }
 }

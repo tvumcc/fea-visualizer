@@ -139,6 +139,20 @@ ComputeShader::ComputeShader(const std::string& compute_source_path) {
 }
 
 /**
+ * Dispatches a compute shader with the specified number of work groups in each dimension.
+ * 
+ * @param num_groups_x The number of work groups to be launched in the X dimension
+ * @param num_groups_y The number of work groups to be launched in the Y dimension
+ * @param num_groups_z The number of work groups to be launched in the Z dimension
+ * @param sync barrier flags to be passed to a subsequent call to glMemoryBarrier(barriers)
+ */
+void ComputeShader::dispatch_compute(int num_groups_x, int num_groups_y, int num_groups_z, int barriers) {
+    bind();
+    glDispatchCompute(num_groups_x, num_groups_y, num_groups_z);
+    glMemoryBarrier(barriers);
+}
+
+/**
  * Bind shader to OpenGL state.
  */
 void AbstractShader::bind() {

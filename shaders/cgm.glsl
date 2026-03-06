@@ -109,7 +109,7 @@ void main() {
             d_iA_norm = result[0];
         } break;
         case 2: { // Update u and r
-            // if (globalID < N) {
+            if (globalID < N) {
                 float alpha = r_i_norm / d_iA_norm;
                 r[globalID] = r[globalID] - alpha * Ad_i();
 
@@ -124,7 +124,7 @@ void main() {
                         v[globalID] = v[globalID] + alpha * d[globalID];
                         break;
                 }
-            // }
+            }
         } break;
         case 3: { // Calculate dot(r_(i+1), r_(i+1))
             parallel_reduction(r[globalID] * r[globalID]);

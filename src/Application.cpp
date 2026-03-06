@@ -442,13 +442,13 @@ void Application::render_gui() {
                 auto params = std::static_pointer_cast<AdvectionDiffusionParameters>(fem_ctx->parameters[Equation::Advection_Diffusion]);
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Advection-Diffusion Time Step", &params->time_step, 0.001f, 0.003f); 
+                ImGui::SliderFloat("##Advection-Diffusion Time Step", &params->time_step, 0.001f, 0.05f); 
                 ImGui::Text("Diffusivity Constant(c)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Advection-Diffusion Diffusivity Constant (c)", &params->c, 0.05f, 0.25f);
+                ImGui::SliderFloat("##Advection-Diffusion Diffusivity Constant (c)", &params->c, 0.001f, 0.25f);
                 ImGui::Text("Velocity (v)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                if (ImGui::SliderFloat3("##Advection-Diffusion Velocity (v)", params->velocity.data(), -1.0f, 1.0f))
+                if (ImGui::SliderFloat3("##Advection-Diffusion Velocity (v)", params->velocity.data(), -5.0f, 5.0f))
                     fem_ctx->assemble_matrices();
             } break;
             case Equation::Wave: {
@@ -462,17 +462,21 @@ void Application::render_gui() {
             } break;
             case Equation::Reaction_Diffusion: {
                 auto params = std::static_pointer_cast<ReactionDiffusionParameters>(fem_ctx->parameters[Equation::Reaction_Diffusion]);
-                ImGui::Text("D_u = 0.08");
-                ImGui::Text("D_v = 0.04");
                 ImGui::Text("Time Step");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Reaction-Diffusion Time Step", &params->time_step, 0.001f, 0.010f); 
+                ImGui::SliderFloat("##Reaction-Diffusion Time Step", &params->time_step, 0.0001f, 0.010f, "%.4f"); 
                 ImGui::Text("Feed Rate (f)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
                 ImGui::SliderFloat("##Reaction-Diffusion Feed Rate (f)", &params->feed_rate, 0.0f, 0.1f); 
                 ImGui::Text("Kill Rate (k)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
                 ImGui::SliderFloat("##Reaction-Diffusion Kill Rate (k)", &params->kill_rate, 0.0f, 0.1f); 
+                ImGui::Text("Diffusion of Species U (Du)");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Reaction-Diffusion Diffusion of Species U (Du)", &params->Du, 0.08f, 0.32f); 
+                ImGui::Text("Diffusion of Species V (Dv)");
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::SliderFloat("##Reaction-Diffusion Diffusion of Species V (Dv)", &params->Dv, 0.04f, 0.16f); 
             } break;
         }
     }
@@ -577,9 +581,16 @@ void Application::run() {
             pslg->pending_point.reset();
         if (settings.interact_mode == InteractMode::Brush && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS))
             brush_idx = brush(get_world_ray_from_mouse(), camera->get_camera_position(), settings.brush_strength);
+
+        if (fem_ctx->surface) gpu_solver->brush(brush_idx, settings.brush_strength);
         if (fem_ctx->surface && !settings.paused) {
-            gpu_solver->set_uniforms(brush_idx, settings.brush_strength);
             gpu_solver->advance_time();
+            if (gpu_solver->has_numerical_instability()) {
+                clear_solver();
+                settings.paused = true;
+                settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values and pausing...";
+                ImGui::OpenPopup("Error");
+            }
             // cpu_solver->advance_time();
             // if (cpu_solver->has_numerical_instability()) {
             //     clear_solver();
@@ -627,6 +638,7 @@ void Application::clear_holes() {
 }
 void Application::clear_solver() {
     cpu_solver->clear_values();
+    gpu_solver->clear_values();
     surface->clear_values();
 }
 void Application::delete_surface() {

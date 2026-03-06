@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#define r_i_norm residual_norm_map[1]
+
 GPUSolver::GPUSolver(std::shared_ptr<FEMContext> fem_ctx) {
     this->fem_ctx = fem_ctx;
 }
@@ -30,6 +32,15 @@ void GPUSolver::init() {
     bind_buffers();
 }
 
+void GPUSolver::brush(int brush_idx, float brush_strength) {
+    cgm_helper_compute_shader->bind();
+    cgm_helper_compute_shader->set_int("brush_idx", brush_idx);
+    cgm_helper_compute_shader->set_float("brush_strength", brush_strength);
+
+    cgm_helper_compute_shader->set_int("stage", 0);
+    cgm_helper_compute_shader->dispatch_compute(fem_ctx->num_nodes() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+}
+
 void GPUSolver::init_buffers() {
     std::cout << "Initializing Buffers\n"; 
     glGenBuffers(1, &this->state);
@@ -50,7 +61,7 @@ void GPUSolver::init_buffers() {
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->state);
     glBufferStorage(GL_SHADER_STORAGE_BUFFER, (fem_ctx->num_unknowns() + 7) * sizeof(float), zeros.data(), GL_DYNAMIC_STORAGE_BIT | GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
-    residual_norm_map = static_cast<float*>(glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, 7 * sizeof(float), GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT));
+    residual_norm_map = static_cast<float*>(glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, 4 * sizeof(float), GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT));
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->known);
     glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), zeros.data(), GL_STATIC_DRAW);
@@ -98,10 +109,6 @@ void GPUSolver::load_state() {
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 4 * sizeof(float), 3 * sizeof(unsigned int), data);
 }
 
-void GPUSolver::load_vectors() {
-    
-}
-
 void GPUSolver::load_matrices() {
     std::cout << "Initializing Matrices\n"; 
     unsigned int N = fem_ctx->num_unknowns();
@@ -142,12 +149,6 @@ void GPUSolver::load_matrices() {
     glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(float), advection_buffer.data(), GL_STATIC_READ);
 }
 
-void GPUSolver::set_uniforms(int brush_idx, float brush_strength) {
-    cgm_helper_compute_shader->bind();
-    cgm_helper_compute_shader->set_int("brush_idx", brush_idx);
-    cgm_helper_compute_shader->set_float("brush_strength", brush_strength);
-}
-
 void GPUSolver::dot_product(int stage) {
     bind_buffers();
     int work_group_size = 1024;
@@ -159,16 +160,49 @@ void GPUSolver::dot_product(int stage) {
     while (current_size > 1) {
         // This math is to ensure that there are enough work groups
         int num_work_groups = (current_size + (work_group_size - 1)) / work_group_size;
-        glDispatchCompute(num_work_groups, 1, 1);
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        cgm_compute_shader->dispatch_compute(num_work_groups, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
 
         cgm_compute_shader->set_bool("first_pass", false);
         current_size = num_work_groups;
     }
 }
 
-void GPUSolver::advance_time() {
+void GPUSolver::cgm_setup() {
+    cgm_helper_compute_shader->bind();
 
+    // Map surface to solution vector and process brush (# invocations = total_nodes)
+    cgm_helper_compute_shader->set_int("stage", 0);
+    cgm_helper_compute_shader->dispatch_compute(fem_ctx->num_nodes() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+
+    // Initialize vectors (# invocations = N)
+    cgm_helper_compute_shader->set_int("stage", 1);
+    cgm_helper_compute_shader->dispatch_compute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+}
+
+void GPUSolver::cgm() {
+    cgm_compute_shader->bind();
+
+    // Stage 0: Calculate dot(r_i, r_i), Store in r_i_norm (Only occurs on the first iteration of CGM)
+    dot_product(0);
+
+    if (r_i_norm > 1e-8) {
+        // Stage 1: Calculate dot(d_i, A * d_i), Store in d_iA_norm
+        dot_product(1);
+
+        // Stage 2: Update u and r
+        cgm_compute_shader->set_int("stage", 2);
+        cgm_compute_shader->dispatch_compute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+    }
+}
+
+void GPUSolver::cgm_cleanup() {
+    // Map solution vector to surface (# invocations = total_nodes)
+    cgm_helper_compute_shader->bind();
+    cgm_helper_compute_shader->set_int("stage", 3);
+    cgm_helper_compute_shader->dispatch_compute(fem_ctx->num_nodes() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+}
+
+void GPUSolver::advance_time() {
     switch (fem_ctx->equation) {
         case Equation::Heat: {
             auto params = std::static_pointer_cast<HeatParameters>(fem_ctx->parameters[Equation::Heat]);
@@ -178,48 +212,32 @@ void GPUSolver::advance_time() {
             cgm_helper_compute_shader->set_float("time_step", params->time_step);
             cgm_helper_compute_shader->set_float("c", params->conductivity);
             
-            // Map surface to solution vector and process brush (# invocations = total_nodes)
-            cgm_helper_compute_shader->set_int("stage", 0);
-            glDispatchCompute(fem_ctx->num_nodes() / 1024 + 1, 1, 1);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
-            // Initialize vectors (# invocations = N)
-            cgm_helper_compute_shader->set_int("stage", 1);
-            glDispatchCompute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
-            // Conjugate Gradient Method
             cgm_compute_shader->bind();
             cgm_compute_shader->set_int("equation", 0); 
             cgm_compute_shader->set_float("time_step", params->time_step);
             cgm_compute_shader->set_float("c", params->conductivity);
 
-            float& r_i_norm = residual_norm_map[1];
-
-            // Stage 0: Calculate dot(r_i, r_i), Store in r_i_norm (Only occurs on the first iteration of CGM)
-            dot_product(0);
-
-            if (r_i_norm > 1e-8) {
-                // Stage 1: Calculate dot(d_i, A * d_i), Store in d_iA_norm
-                dot_product(1);
-
-                // Stage 2: Update u and r
-                cgm_compute_shader->set_int("stage", 2);
-                glDispatchCompute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1);
-                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-            }
-
-            cgm_helper_compute_shader->bind();
-            cgm_helper_compute_shader->set_int("equation", 0);
-
-            // Map solution vector to surface (# invocations = total_nodes)
-            cgm_helper_compute_shader->set_int("stage", 3);
-            glDispatchCompute(fem_ctx->num_nodes() / 1024 + 1, 1, 1);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            cgm_setup();
+            cgm();
+            cgm_cleanup();
         } break;
 
         case Equation::Advection_Diffusion: {
+            auto params = std::static_pointer_cast<AdvectionDiffusionParameters>(fem_ctx->parameters[Equation::Advection_Diffusion]);
 
+            cgm_helper_compute_shader->bind();
+            cgm_helper_compute_shader->set_int("equation", 1);
+            cgm_helper_compute_shader->set_float("time_step", params->time_step);
+            cgm_helper_compute_shader->set_float("c", params->c);
+            
+            cgm_compute_shader->bind();
+            cgm_compute_shader->set_int("equation", 1); 
+            cgm_compute_shader->set_float("time_step", params->time_step);
+            cgm_compute_shader->set_float("c", params->c);
+
+            cgm_setup();
+            cgm();
+            cgm_cleanup();
         } break;
 
         case Equation::Wave: {
@@ -229,72 +247,65 @@ void GPUSolver::advance_time() {
             cgm_helper_compute_shader->set_int("equation", 2);
             cgm_helper_compute_shader->set_float("time_step", params->time_step);
             cgm_helper_compute_shader->set_float("c", params->c);
-            
-            // Map surface to solution vector and process brush (# invocations = total_nodes)
-            cgm_helper_compute_shader->set_int("stage", 0);
-            glDispatchCompute(fem_ctx->num_nodes() / 1024 + 1, 1, 1);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-            // Initialize vectors (# invocations = N)
-            cgm_helper_compute_shader->set_int("stage", 1);
-            glDispatchCompute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
-            // Conjugate Gradient Method
             cgm_compute_shader->bind();
             cgm_compute_shader->set_int("equation", 2); 
             cgm_compute_shader->set_float("time_step", params->time_step);
             cgm_compute_shader->set_float("c", params->c);
 
-            float& r_i_norm = residual_norm_map[1];
+            cgm_setup();
+            cgm();
 
-            // Stage 0: Calculate dot(r_i, r_i), Store in r_i_norm (Only occurs on the first iteration of CGM)
-            dot_product(0);
-
-            if (r_i_norm > 1e-8) {
-            // for (int i = 0; i < 3 && r_i_norm > 1e-8; i++) {
-                // Stage 1: Calculate dot(d_i, A * d_i), Store in d_iA_norm
-                dot_product(1);
-
-                // Stage 2: Update u and r
-                cgm_compute_shader->set_int("stage", 2);
-                glDispatchCompute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1);
-                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
-                // // Stage 3: Calculate dot(r_(i+1), r_(i+1))
-                // dot_product(3);
-
-                // // Stage 4: Use the Gram-Schmidt constant to find the next search direction
-                // cgm_compute_shader->set_int("stage", 4);
-                // glDispatchCompute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1);
-            }
-
+            // Wave Equation Exclusive Step
             cgm_helper_compute_shader->bind();
-            cgm_helper_compute_shader->set_int("equation", 2);
-            cgm_helper_compute_shader->set_int("time_step", params->time_step);
-
-            // Wave Only:
             cgm_helper_compute_shader->set_int("stage", 2);
-            glDispatchCompute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            cgm_helper_compute_shader->dispatch_compute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
 
-            // Map solution vector to surface (# invocations = total_nodes)
-            cgm_helper_compute_shader->set_int("stage", 3);
-            glDispatchCompute(fem_ctx->num_nodes() / 1024 + 1, 1, 1);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
+            cgm_cleanup();
         } break;
 
         case Equation::Reaction_Diffusion: {
+            auto params = std::static_pointer_cast<ReactionDiffusionParameters>(fem_ctx->parameters[Equation::Reaction_Diffusion]);
 
+            cgm_helper_compute_shader->bind();
+            cgm_helper_compute_shader->set_int("equation", 3);
+            cgm_helper_compute_shader->set_float("time_step", params->time_step);
+            cgm_helper_compute_shader->set_float("Du", params->Du);
+            cgm_helper_compute_shader->set_float("Dv", params->Dv);
+            cgm_helper_compute_shader->set_float("feed_rate", params->feed_rate);
+            cgm_helper_compute_shader->set_float("kill_rate", params->kill_rate);
+
+            cgm_compute_shader->bind();
+            cgm_compute_shader->set_int("equation", 3);
+            cgm_compute_shader->set_float("time_step", params->time_step);
+            cgm_compute_shader->set_float("Du", params->Du);
+            cgm_compute_shader->set_float("Dv", params->Dv);
+            cgm_compute_shader->set_float("feed_rate", params->feed_rate);
+            cgm_compute_shader->set_float("kill_rate", params->kill_rate);
+
+            cgm_setup();
+            cgm();
+
+            cgm_helper_compute_shader->bind(); cgm_helper_compute_shader->set_int("equation", 4);
+            cgm_compute_shader->bind(); cgm_compute_shader->set_int("equation", 4);
+            
+            // Initialize vectors (# invocations = N)
+            cgm_helper_compute_shader->bind();
+            cgm_helper_compute_shader->set_int("stage", 1);
+            cgm_helper_compute_shader->dispatch_compute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+
+            cgm();
+            cgm_cleanup();
         } break;
     }
 }
 
 void GPUSolver::clear_values() {
-
+    cgm_helper_compute_shader->bind();
+    cgm_helper_compute_shader->set_int("stage", 4);
+    cgm_helper_compute_shader->dispatch_compute(fem_ctx->num_nodes() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
 bool GPUSolver::has_numerical_instability() {
-    return false;
+    return r_i_norm > 1e4;
 }

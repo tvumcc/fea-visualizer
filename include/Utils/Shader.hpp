@@ -36,4 +36,6 @@ private:
 class ComputeShader : public AbstractShader {
 public:
     ComputeShader(const std::string& source_path);
+
+    void dispatch_compute(int num_groups_x, int num_groups_y, int num_groups_z, int sync = 0);
 };

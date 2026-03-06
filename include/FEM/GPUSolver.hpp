@@ -32,7 +32,7 @@ public:
     bool has_numerical_instability() override;
 
     void init();
-    void GPUSolver::set_uniforms(int brush_idx, float brush_strength);
+    void brush(int brush_idx, float brush_strength);
 private:
     unsigned int state;
     unsigned int known;
@@ -54,8 +54,10 @@ private:
     void bind_buffers();
 
     void load_state();
-    void load_vectors();
     void load_matrices();
 
     void dot_product(int stage);
+    void cgm_setup();
+    void cgm();
+    void cgm_cleanup();
 };
