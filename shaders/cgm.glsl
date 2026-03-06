@@ -109,21 +109,35 @@ void main() {
             d_iA_norm = result[0];
         } break;
         case 2: { // Update u and r
-            float alpha = r_i_norm / d_iA_norm;
+            // if (globalID < N) {
+                float alpha = r_i_norm / d_iA_norm;
+                r[globalID] = r[globalID] - alpha * Ad_i();
 
-            u[globalID] = u[globalID] + alpha * d[globalID];
-            r[globalID] = r[globalID] - alpha * Ad_i();
+                switch (equation) {
+                    case 0: 
+                    case 1: 
+                    case 3:
+                        u[globalID] = u[globalID] + alpha * d[globalID];
+                        break;
+                    case 2: 
+                    case 4:
+                        v[globalID] = v[globalID] + alpha * d[globalID];
+                        break;
+                }
+            // }
         } break;
         case 3: { // Calculate dot(r_(i+1), r_(i+1))
             parallel_reduction(r[globalID] * r[globalID]);
             r_i1_norm = result[0];
         } break;
         case 4: { // Use the Gram-Schmidt constant to find the next search direction
-            float gram_schimdt_constant = r_i1_norm / r_i_norm;
+            if (globalID < N) {
+                float gram_schimdt_constant = r_i1_norm / r_i_norm;
 
-            d[globalID] = r[globalID] + gram_schimdt_constant * d[globalID];
+                d[globalID] = r[globalID] + gram_schimdt_constant * d[globalID];
 
-            r_i_norm = r_i1_norm;
+                r_i_norm = r_i1_norm;
+            }
         } break;
     }
 }

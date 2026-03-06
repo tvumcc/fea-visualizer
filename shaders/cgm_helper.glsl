@@ -45,79 +45,94 @@ void main() {
 
     switch (stage) {
         case 0: { // Map surface to solution vector and process brush (# invocations = total_nodes)
-            if (globalID == brush_idx) {
-                values[globalID] = brush_strength;
-            }
+            // if (globalID < total_nodes) {
+                if (globalID == brush_idx) {
+                    values[globalID] = brush_strength;
+                }
 
-            switch (equation) {
-                case 0: // Heat Equation
-                case 1: // Advection-Diffusion Equation
-                case 2: // Wave Equation
-                    if (idx_map[globalID] != -1) u[idx_map[globalID]] = values[globalID];
-                    break;
-                case 3: // Gray-Scott Reaction-Diffusion Equation (Step 1)
-                case 4: // Gray-Scott Reaction-Diffusion Equation (Step 2)
-                    if (idx_map[globalID] != -1) v[idx_map[globalID]] = values[globalID];
-                    break;
-            }
+                switch (equation) {
+                    case 0: // Heat Equation
+                    case 1: // Advection-Diffusion Equation
+                    case 2: // Wave Equation
+                        if (idx_map[globalID] != -1) u[idx_map[globalID]] = values[globalID];
+                        break;
+                    case 3: // Gray-Scott Reaction-Diffusion Equation (Step 1)
+                    case 4: // Gray-Scott Reaction-Diffusion Equation (Step 2)
+                        v[idx_map[globalID]] = values[globalID];
+                        break;
+                }
+            // }
         } break;
         case 1: { // Initialize vectors (# invocations = N)
-            float b_i = 0.0f;
-            float Ax_i = 0.0f;
-            for (int i = 0; i < M; i++) {
-                int mat_idx = globalID * M + i;
-                int col_idx = matrix_indices[mat_idx];
+            // if (globalID < N) {
+                float b_i = 0.0;
+                float Ax_i = 0.0;
+                for (int i = 0; i < M; i++) {
+                    int mat_idx = globalID * M + i;
+                    int col_idx = matrix_indices[mat_idx];
 
-                if (col_idx != -1) {
-                    switch (equation) {
-                        case 0: { // Heat Equation
-                            b_i += u[col_idx] * (mass[mat_idx] / time_step);
-                            Ax_i += u[col_idx] * (mass[mat_idx] / time_step + c * stiffness[mat_idx]);
-                        } break;
-                        case 1: { // Advection-Diffusion Equation
-                            b_i += u[col_idx] * (mass[mat_idx] / time_step);
-                            Ax_i += u[col_idx] * (mass[mat_idx] / time_step + c * stiffness[mat_idx] - advection[mat_idx]);
-                        } break;
-                        case 2: { // Wave Equation
-                            b_i += v[col_idx] * (mass[mat_idx] / time_step) - c * c * u[col_idx] * stiffness[mat_idx]; 
-                            Ax_i += v[col_idx] * (mass[mat_idx] / time_step + c * c * stiffness[mat_idx] * time_step);
-                        } break;
-                        case 3: { // Gray-Scott Reaction-Diffusion Equation (Step 1)
-                            b_i += u[col_idx] * (mass[mat_idx] / time_step) - u[col_idx] * v[col_idx] * v[col_idx] + feed_rate * (1 - u[col_idx]);
-                            Ax_i += u[col_idx] * (mass[mat_idx] / time_step + Du * stiffness[mat_idx]);
-                        } break;
-                        case 4: { // Gray-Scott Reaction-Diffusion Equation (Step 2)
-                            b_i += v[col_idx] * (mass[mat_idx] / time_step) + u[col_idx] * v[col_idx] * v[col_idx] - v[col_idx] * (feed_rate + kill_rate);
-                            Ax_i += v[col_idx] * (mass[mat_idx] / time_step + Dv * stiffness[mat_idx]);
-                        } break;
+                    if (col_idx != -1) {
+                        switch (equation) {
+                            case 0: { // Heat Equation
+                                b_i += u[col_idx] * (mass[mat_idx] / time_step);
+                                Ax_i += u[col_idx] * (mass[mat_idx] / time_step + c * stiffness[mat_idx]);
+                            } break;
+                            case 1: { // Advection-Diffusion Equation
+                                b_i += u[col_idx] * (mass[mat_idx] / time_step);
+                                Ax_i += u[col_idx] * (mass[mat_idx] / time_step + c * stiffness[mat_idx] - advection[mat_idx]);
+                            } break;
+                            case 2: { // Wave Equation
+                                b_i += v[col_idx] * (mass[mat_idx] / time_step) - c * c * u[col_idx] * stiffness[mat_idx]; 
+                                Ax_i += v[col_idx] * (mass[mat_idx] / time_step + c * c * stiffness[mat_idx] * time_step);
+                            } break;
+                            case 3: { // Gray-Scott Reaction-Diffusion Equation (Step 1)
+                                b_i += u[col_idx] * (mass[mat_idx] / time_step) - u[col_idx] * v[col_idx] * v[col_idx] + feed_rate * (1 - u[col_idx]);
+                                Ax_i += u[col_idx] * (mass[mat_idx] / time_step + Du * stiffness[mat_idx]);
+                            } break;
+                            case 4: { // Gray-Scott Reaction-Diffusion Equation (Step 2)
+                                b_i += v[col_idx] * (mass[mat_idx] / time_step) + u[col_idx] * v[col_idx] * v[col_idx] - v[col_idx] * (feed_rate + kill_rate);
+                                Ax_i += v[col_idx] * (mass[mat_idx] / time_step + Dv * stiffness[mat_idx]);
+                            } break;
+                        }
                     }
                 }
-            }
 
-            b[globalID] = b_i;
-            d[globalID] = b_i - Ax_i;
-            r[globalID] = b_i - Ax_i;
+                b[globalID] = b_i;
+                d[globalID] = b_i - Ax_i;
+                r[globalID] = b_i - Ax_i;
+                r_0_norm = 0.0;
+                r_i_norm = 0.0;
+                r_i1_norm = 0.0;
+                d_iA_norm = 0.0;
+            // }
         } break;
         case 2: { // Wave Equation update (# invocations = N)
             switch (equation) {
                 case 2: { // Wave Equation
-                    u[globalID] = u[globalID] + v[globalID] * time_step;
+                    if (globalID < N) {
+                        u[globalID] = u[globalID] + v[globalID] * time_step;
+                    }
                 } break;
             }
         } break;
         case 3: { // Map solution vector to surface (# invocations = total_nodes)
-            switch (equation) {
-                case 0: // Heat Equation
-                case 1: // Advection-Diffusion Equation
-                case 2: // Wave Equation
-                    values[globalID] = idx_map[globalID] != -1 ? u[idx_map[globalID]] : 0.0f;
-                    break;
-                case 3: // Gray-Scott Reaction-Diffusion Equation (Step 1)
-                case 4: // Gray-Scott Reaction-Diffusion Equation (Step 2)
-                    values[globalID] = idx_map[globalID] != -1 ? v[idx_map[globalID]] : 0.0f;
-                    break;
-            }
+            // if (globalID < total_nodes) {
+                switch (equation) {
+                    case 0: // Heat Equation
+                    case 1: // Advection-Diffusion Equation
+                    case 2: // Wave Equation
+                        values[globalID] = idx_map[globalID] != -1 ? u[idx_map[globalID]] : 0.0;
+                        break;
+                    case 3: // Gray-Scott Reaction-Diffusion Equation (Step 1)
+                    case 4: // Gray-Scott Reaction-Diffusion Equation (Step 2)
+                        values[globalID] = v[idx_map[globalID]];
+                        break;
+                }
+
+                if (globalID == brush_idx) {
+                    values[globalID] = brush_strength;
+                }
+            // }
         } break;
     }
-
 }
