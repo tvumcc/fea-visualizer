@@ -373,6 +373,15 @@ void Surface::load_value_buffer() {
 }
 
 /**
+ * Transfers data from the value buffer on the GPU to value array on this Surface object
+ */
+void Surface::read_value_buffer() {
+    glBindVertexArray(vertex_array);
+    glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
+    glGetBufferSubData(GL_ARRAY_BUFFER, 0, values.size() * sizeof(float), values.data());
+}
+
+/**
  * Triangulate a PSLG defined by buffers of data.
  * 
  * @param vertices The flattened vertex data as a raw pointer. Every 3 doubles define a 3D position.

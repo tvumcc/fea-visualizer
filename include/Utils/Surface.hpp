@@ -55,6 +55,7 @@ public:
     void export_to_ply(const char* file_path, float vertex_extrusion = 0.25f, float threshold = 0.0f, MeshType mesh_type = MeshType::Open);
 
     void load_value_buffer();
+    void read_value_buffer();
     void draw(bool wireframe);
     void clear();
     void clear_values();

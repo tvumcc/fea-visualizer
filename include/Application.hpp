@@ -37,6 +37,7 @@ struct Settings {
     bool draw_surface_wireframe = true;
 
     bool paused = false;
+    bool use_gpu = false;
     int bvh_depth = 10;
     float brush_strength = 1.0f;
     float vertex_extrusion = 0.5f;
@@ -102,9 +103,11 @@ public:
     std::shared_ptr<PSLG> pslg;
     std::shared_ptr<Surface> surface;
     std::shared_ptr<FEMContext> fem_ctx;
+    std::shared_ptr<BVH> bvh;
+
+    std::shared_ptr<Solver> solver;
     std::shared_ptr<CPUSolver> cpu_solver;
     std::shared_ptr<GPUSolver> gpu_solver;
-    std::shared_ptr<BVH> bvh;
 
     ResourceManager<Mesh> meshes;
     ResourceManager<AbstractShader> shaders;
@@ -131,6 +134,7 @@ public:
     void init_surface_from_pslg();
     void init_surface_from_obj();
     void init_surface_from_obj(const char* obj_path);
+    void switch_solver(bool use_gpu);
     void switch_equation(Equation new_equation);
     void switch_color_map(const char* new_color_map);
     void switch_mode(InteractMode mode);

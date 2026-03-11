@@ -141,6 +141,7 @@ void Application::load() {
     gpu_solver = std::make_shared<GPUSolver>(fem_ctx);
     gpu_solver->cgm_compute_shader = static_pointer_cast<ComputeShader>(shaders.get("cgm"));
     gpu_solver->cgm_helper_compute_shader = static_pointer_cast<ComputeShader>(shaders.get("cgm_helper"));
+    switch_solver(settings.use_gpu);
 
     switch_color_map("Viridis");
 
@@ -428,6 +429,7 @@ void Application::render_gui() {
         if (ImGui::Button("Clear Solver", ImVec2(ImGui::GetContentRegionAvail().x, 0.0)))  clear_solver();
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             ImGui::SetTooltip("Reset all nodal values to 0");
+        if (ImGui::Checkbox("Use GPU", &settings.use_gpu)) switch_solver(settings.use_gpu);
         switch (fem_ctx->equation) {
             case Equation::Heat: {
                 auto params = std::static_pointer_cast<HeatParameters>(fem_ctx->parameters[Equation::Heat]);
@@ -582,22 +584,15 @@ void Application::run() {
         if (settings.interact_mode == InteractMode::Brush && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS))
             brush_idx = brush(get_world_ray_from_mouse(), camera->get_camera_position(), settings.brush_strength);
 
-        if (fem_ctx->surface) gpu_solver->brush(brush_idx, settings.brush_strength);
+        if (fem_ctx->surface && settings.use_gpu) gpu_solver->brush(brush_idx, settings.brush_strength);
         if (fem_ctx->surface && !settings.paused) {
-            gpu_solver->advance_time();
-            if (gpu_solver->has_numerical_instability()) {
+            solver->advance_time();
+            if (solver->has_numerical_instability()) {
                 clear_solver();
                 settings.paused = true;
                 settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values and pausing...";
                 ImGui::OpenPopup("Error");
             }
-            // cpu_solver->advance_time();
-            // if (cpu_solver->has_numerical_instability()) {
-            //     clear_solver();
-            //     settings.paused = true;
-            //     settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values and pausing...";
-            //     ImGui::OpenPopup("Error");
-            // }
         }
 
         if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
@@ -609,8 +604,8 @@ void Application::run() {
 
         if (gui_visible)
             render_gui();
-        if (surface->initialized) {
-            // surface->load_value_buffer();
+        if (surface->initialized && !settings.use_gpu) {
+            surface->load_value_buffer();
         }
         render();
         if (gui_visible)
@@ -685,6 +680,14 @@ void Application::init_surface_from_obj(const char* obj_path) {
     } catch (std::runtime_error& e) {
         settings.error_message = e.what();
         ImGui::OpenPopup("Error");
+    }
+}
+void Application::switch_solver(bool use_gpu) {
+    if (use_gpu) {
+        solver = gpu_solver;
+    } else {
+        surface->read_value_buffer();
+        solver = cpu_solver;
     }
 }
 void Application::switch_equation(Equation new_equation) {
