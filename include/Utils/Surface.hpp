@@ -41,6 +41,8 @@ public:
 
     std::shared_ptr<Shader> wireframe_shader;
     std::shared_ptr<Shader> fem_mesh_shader;
+    std::shared_ptr<ComputeShader> smooth_normals_compute_shader;
+
     std::shared_ptr<ColorMap> color_map;
     
     MeshType mesh_type = MeshType::Open;
@@ -56,13 +58,14 @@ public:
 
     void load_value_buffer();
     void read_value_buffer();
+    void calculate_normals(float vertex_extrusion);
     void draw(bool wireframe);
     void clear();
     void clear_values();
 
     unsigned int get_value_buffer() {return value_buffer;}
 private:
-    unsigned int vertex_buffer, value_buffer, normal_buffer, element_buffer, vertex_array;
+    unsigned int vertex_buffer, value_buffer, normal_buffer, element_buffer, vertex_array, calculated_normals_buffer;
 
     void load_buffers();
     void perform_triangulation(double* vertices, int num_vertices, int* segments, int num_segments, double* holes, int num_holes, float triangle_area);

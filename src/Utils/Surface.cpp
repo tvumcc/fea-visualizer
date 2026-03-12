@@ -284,6 +284,29 @@ void Surface::export_to_ply(const char* file_path, float vertex_extrusion, float
     of.close();
 }
 
+void Surface::calculate_normals(float vertex_extrusion) {
+    if (initialized) {
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, vertex_buffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, normal_buffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, value_buffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, element_buffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, calculated_normals_buffer);
+
+        int work_group_size = 1024;
+
+        smooth_normals_compute_shader->bind();
+        smooth_normals_compute_shader->set_float("vertex_extrusion", vertex_extrusion);
+        smooth_normals_compute_shader->set_int("num_vertices", vertices.size());
+        smooth_normals_compute_shader->set_int("num_triangles", triangles.size());
+        smooth_normals_compute_shader->set_int("stage", 0);
+        smooth_normals_compute_shader->dispatch_compute((vertices.size() + (work_group_size - 1)) / work_group_size, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT | GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+        glFinish();
+        smooth_normals_compute_shader->set_int("stage", 1);
+        smooth_normals_compute_shader->dispatch_compute((triangles.size() + (work_group_size - 1)) / work_group_size, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT | GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+        glFinish();
+    }
+}
+
 /**
  * Renders this surface to the screen.
  */
@@ -348,6 +371,10 @@ void Surface::load_buffers() {
     glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
     glBufferData(GL_ARRAY_BUFFER, values.size() * sizeof(float), values.data(), GL_STATIC_DRAW);
 
+    glGenBuffers(1, &calculated_normals_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, calculated_normals_buffer);
+    glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(glm::vec3), NULL, GL_STATIC_DRAW);
+
     glGenBuffers(1, &element_buffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size() * sizeof(Triangle), triangles.data(), GL_STATIC_DRAW);
@@ -361,6 +388,9 @@ void Surface::load_buffers() {
     glBindBuffer(GL_ARRAY_BUFFER, value_buffer);
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
     glEnableVertexAttribArray(2);
+    glBindBuffer(GL_ARRAY_BUFFER, calculated_normals_buffer); 
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(3);
 }
 
 /**

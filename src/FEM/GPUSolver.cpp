@@ -9,7 +9,6 @@ GPUSolver::GPUSolver(std::shared_ptr<FEMContext> fem_ctx) {
 }
 
 GPUSolver::~GPUSolver() {
-    std::cout << "Destroying Buffers\n";
     glDeleteBuffers(1, &this->state);
     glDeleteBuffers(1, &this->known);
     glDeleteBuffers(1, &this->residuals);
@@ -42,7 +41,6 @@ void GPUSolver::brush(int brush_idx, float brush_strength) {
 }
 
 void GPUSolver::init_buffers() {
-    std::cout << "Initializing Buffers\n"; 
     glGenBuffers(1, &this->state);
     glGenBuffers(1, &this->known);
     glGenBuffers(1, &this->residuals);
@@ -110,7 +108,6 @@ void GPUSolver::load_state() {
 }
 
 void GPUSolver::load_matrices() {
-    std::cout << "Initializing Matrices\n"; 
     unsigned int N = fem_ctx->num_unknowns();
     unsigned int M = fem_ctx->num_max_nonzeros_per_row();
 
@@ -204,6 +201,8 @@ void GPUSolver::cgm_cleanup() {
 }
 
 void GPUSolver::advance_time() {
+    bind_buffers();
+
     switch (fem_ctx->equation) {
         case Equation::Heat: {
             auto params = std::static_pointer_cast<HeatParameters>(fem_ctx->parameters[Equation::Heat]);

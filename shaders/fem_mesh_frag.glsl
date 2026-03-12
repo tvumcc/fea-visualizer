@@ -16,8 +16,10 @@ vec3 get_color(float t) {
 }
 
 in float value;
+in vec3 normal;
 
 void main() {
     if (pixel_discard_threshold != 0.0 && value < pixel_discard_threshold) discard;
-    FragColor = vec4(get_color(value), 1.0);
+    // FragColor = vec4(get_color(value), 1.0);
+    FragColor = vec4(normalize(normal), 1.0);
 }

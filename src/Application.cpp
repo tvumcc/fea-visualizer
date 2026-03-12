@@ -45,6 +45,7 @@ void Application::load_resources() {
 
     shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
     shaders.add("cgm_helper", std::make_shared<ComputeShader>("shaders/cgm_helper.glsl"));
+    shaders.add("smooth_normals", std::make_shared<ComputeShader>("shaders/smooth_normals.glsl"));
 
     // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same. (as well as the image icon file)
     color_maps.add("Viridis", std::make_shared<ColorMap>(
@@ -134,6 +135,7 @@ void Application::load() {
     surface = std::make_shared<Surface>();
     surface->wireframe_shader = static_pointer_cast<Shader>(shaders.get("wireframe"));
     surface->fem_mesh_shader = static_pointer_cast<Shader>(shaders.get("fem_mesh"));
+    surface->smooth_normals_compute_shader = static_pointer_cast<ComputeShader>(shaders.get("smooth_normals"));
     
     fem_ctx = std::make_shared<FEMContext>();
 
@@ -170,6 +172,7 @@ void Application::render() {
     shaders.get("fem_mesh")->set_float("pixel_discard_threshold", settings.pixel_discard_threshold);
     shaders.get("wireframe")->bind();
     shaders.get("wireframe")->set_float("vertex_extrusion", settings.vertex_extrusion);
+    surface->calculate_normals(settings.vertex_extrusion);
     surface->draw(settings.draw_surface_wireframe);
 
     if (settings.draw_grid_interface) grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
