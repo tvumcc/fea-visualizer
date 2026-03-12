@@ -100,6 +100,7 @@ void main() {
                 b[globalID] = b_i;
                 d[globalID] = b_i - Ax_i;
                 r[globalID] = b_i - Ax_i;
+                result[globalID] = 0.0;
                 r_0_norm = 0.0;
                 r_i_norm = 0.0;
                 r_i1_norm = 0.0;
@@ -142,8 +143,11 @@ void main() {
                 r[globalID] = 0.0;
                 d[globalID] = 0.0;
                 b[globalID] = 0.0;
+                result[globalID] = 0.0;
                 r_0_norm = 0.0;
                 r_i_norm = 0.0;
+                r_i1_norm = 0.0;
+                d_iA_norm = 0.0;
             }
         } break;
     }

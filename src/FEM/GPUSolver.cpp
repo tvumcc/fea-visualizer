@@ -61,7 +61,7 @@ void GPUSolver::init_buffers() {
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->state);
     glBufferStorage(GL_SHADER_STORAGE_BUFFER, (fem_ctx->num_unknowns() + 7) * sizeof(float), zeros.data(), GL_DYNAMIC_STORAGE_BIT | GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
-    residual_norm_map = static_cast<float*>(glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, 4 * sizeof(float), GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT));
+    residual_norm_map = static_cast<float*>(glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, 8 * sizeof(float), GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT));
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->known);
     glBufferData(GL_SHADER_STORAGE_BUFFER, fem_ctx->num_unknowns() * sizeof(float), zeros.data(), GL_STATIC_DRAW);
@@ -160,7 +160,7 @@ void GPUSolver::dot_product(int stage) {
     while (current_size > 1) {
         // This math is to ensure that there are enough work groups
         int num_work_groups = (current_size + (work_group_size - 1)) / work_group_size;
-        cgm_compute_shader->dispatch_compute(num_work_groups, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+        cgm_compute_shader->dispatch_compute(num_work_groups, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT | GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
 
         cgm_compute_shader->set_bool("first_pass", false);
         current_size = num_work_groups;
@@ -185,6 +185,7 @@ void GPUSolver::cgm() {
     // Stage 0: Calculate dot(r_i, r_i), Store in r_i_norm (Only occurs on the first iteration of CGM)
     dot_product(0);
 
+    glFinish();
     if (r_i_norm > 1e-8) {
         // Stage 1: Calculate dot(d_i, A * d_i), Store in d_iA_norm
         dot_product(1);
@@ -307,5 +308,6 @@ void GPUSolver::clear_values() {
 }
 
 bool GPUSolver::has_numerical_instability() {
+    glFinish();
     return r_i_norm > 1e4;
 }

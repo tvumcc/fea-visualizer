@@ -475,10 +475,10 @@ void Application::render_gui() {
                 ImGui::SliderFloat("##Reaction-Diffusion Kill Rate (k)", &params->kill_rate, 0.0f, 0.1f); 
                 ImGui::Text("Diffusion of Species U (Du)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Reaction-Diffusion Diffusion of Species U (Du)", &params->Du, 0.08f, 0.32f); 
+                ImGui::SliderFloat("##Reaction-Diffusion Diffusion of Species U (Du)", &params->Du, 0.08f, 0.64f); 
                 ImGui::Text("Diffusion of Species V (Dv)");
                 ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-                ImGui::SliderFloat("##Reaction-Diffusion Diffusion of Species V (Dv)", &params->Dv, 0.04f, 0.16f); 
+                ImGui::SliderFloat("##Reaction-Diffusion Diffusion of Species V (Dv)", &params->Dv, 0.04f, 0.32f); 
             } break;
         }
     }
