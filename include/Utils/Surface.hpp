@@ -59,7 +59,7 @@ public:
     void load_value_buffer();
     void read_value_buffer();
     void calculate_normals(float vertex_extrusion);
-    void draw(bool wireframe);
+    void draw(bool wireframe, glm::vec3 camera_position);
     void clear();
     void clear_values();
 

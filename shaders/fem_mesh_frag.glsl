@@ -15,28 +15,84 @@ vec3 get_color(float t) {
     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
 }
 
+uniform vec3 view_pos;
+
 in float value;
 in vec3 normal;
 in vec3 frag_pos;
 
-void main() {
-    vec3 light_pos = vec3(3.0, 3.0, 3.0);
-    vec3 light_dir = normalize(light_pos - frag_pos);
-    vec3 light_color = vec3(1.0, 1.0, 1.0);
+float D(vec3 N, vec3 H, float roughness) {
+    float a2 = pow(roughness, 4);
+    float NdotH2 = pow(max(dot(N, H), 0.0), 2);
+    
+    float numerator = a2;
+    float denominator = 3.1415926535 * pow(NdotH2 * (a2 - 1.0) + 1.0, 2);
+    return numerator / denominator;
+}
 
+vec3 F(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+float G_SchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float numerator = NdotV;
+    float denominator = NdotV * (1.0 - k) + k;
+    return numerator / denominator;
+}
+
+float G(vec3 N, vec3 V, vec3 L, float roughness) {
+    return G_SchlickGGX(max(dot(N, V), 0.0), roughness) * G_SchlickGGX(max(dot(N, L), 0.0), roughness);
+}
+
+void main() {
     if (pixel_discard_threshold != 0.0 && value < pixel_discard_threshold) discard;
 
+    vec3 N = normalize(normal);
+    vec3 V = normalize(view_pos - frag_pos); 
 
+    vec3 light_positions[1];
+    vec3 light_colors[1];
+    light_positions[0] = vec3(1.0, 1.0, 1.0);
+    light_colors[0] = vec3(1.0, 1.0, 1.0);
 
+    vec3 albedo = pow(get_color(2.0 * value), vec3(2.2));
+    float roughness = 0.5;
+    float metallic = 0.1; 
 
-    float ambient_strength = 0.4;
-    vec3 ambient = ambient_strength * light_color;
+    vec3 Lo = vec3(0.0);
+    for (int i = 0; i < 1; i++) {
+        vec3 L = normalize(light_positions[i] - frag_pos);
+        vec3 H = normalize(V + L);
 
-    float diff = max(dot(normalize(normal), light_dir), 0.0);
-    vec3 diffuse = diff * light_color;
+        float dist = length(light_positions[i] - frag_pos);
+        float attenuation = dist * dist;
+        vec3 radiance = light_colors[i] / attenuation;
 
+        vec3 F0 = mix(vec3(0.04), albedo, metallic);
+        vec3 fresnel = F(max(dot(H, V), 0.0), F0);
 
-    // FragColor = vec4(normalize(normal), 1.0);
-    vec3 result = (ambient + diffuse) * get_color(value);
-    FragColor = vec4(result, 1.0);
+        vec3 numerator = D(N, H, roughness) * fresnel * G(N, V, L, roughness);
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+        vec3 specular = numerator / denominator;
+
+        vec3 kS = fresnel;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;
+
+        const float PI = 3.1415926535;
+
+        float NdotL = max(dot(N, L), 0.0);
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+    }
+
+    vec3 ambient = vec3(0.4) * albedo;
+    vec3 color = ambient + Lo;
+
+    // color = color / (color + vec3(1.0));
+    color = pow(color, vec3(1.0 / 2.2));
+
+    FragColor = vec4(color, 1.0);
 }
