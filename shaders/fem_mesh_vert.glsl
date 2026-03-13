@@ -10,9 +10,11 @@ uniform float vertex_extrusion;
 
 out float value;
 out vec3 normal;
+out vec3 frag_pos;
 
 void main() {
     value = aValue;
     normal = normalize(aCalculatedNormal);
+    frag_pos = vec3(model * vec4(min(1.0, vertex_extrusion * max(0.0, aValue)) * aNormal + aPos, 1.0));
     gl_Position = view_proj * (model * vec4(min(1.0, vertex_extrusion * max(0.0, aValue)) * aNormal + aPos, 1.0));
 }

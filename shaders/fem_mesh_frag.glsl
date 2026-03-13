@@ -17,9 +17,26 @@ vec3 get_color(float t) {
 
 in float value;
 in vec3 normal;
+in vec3 frag_pos;
 
 void main() {
+    vec3 light_pos = vec3(3.0, 3.0, 3.0);
+    vec3 light_dir = normalize(light_pos - frag_pos);
+    vec3 light_color = vec3(1.0, 1.0, 1.0);
+
     if (pixel_discard_threshold != 0.0 && value < pixel_discard_threshold) discard;
-    // FragColor = vec4(get_color(value), 1.0);
-    FragColor = vec4(normalize(normal), 1.0);
+
+
+
+
+    float ambient_strength = 0.4;
+    vec3 ambient = ambient_strength * light_color;
+
+    float diff = max(dot(normalize(normal), light_dir), 0.0);
+    vec3 diffuse = diff * light_color;
+
+
+    // FragColor = vec4(normalize(normal), 1.0);
+    vec3 result = (ambient + diffuse) * get_color(value);
+    FragColor = vec4(result, 1.0);
 }
