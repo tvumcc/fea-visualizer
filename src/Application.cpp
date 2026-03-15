@@ -184,7 +184,7 @@ void Application::render() {
     shaders.get("wireframe")->bind();
     shaders.get("wireframe")->set_float("vertex_extrusion", settings.vertex_extrusion);
     surface->calculate_normals(settings.vertex_extrusion);
-    surface->draw(settings.draw_surface_wireframe, camera->get_camera_position());
+    surface->draw(settings.draw_surface_wireframe, settings.pixel_discard_threshold, camera->get_camera_position());
 
     if (settings.draw_grid_interface) grid_interface->draw(camera, glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
 }

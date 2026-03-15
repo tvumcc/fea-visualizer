@@ -7,6 +7,8 @@ layout (location = 3) in vec3 aCalculatedNormal;
 uniform mat4 model;
 uniform mat4 view_proj;
 uniform float vertex_extrusion;
+uniform float pixel_discard_threshold;
+uniform int mesh_type;
 
 out float value;
 out vec3 normal;
@@ -14,7 +16,23 @@ out vec3 frag_pos;
 
 void main() {
     value = aValue;
-    normal = normalize(aCalculatedNormal);
-    frag_pos = vec3(model * vec4(min(1.0, vertex_extrusion * max(0.0, aValue)) * aNormal + aPos, 1.0));
-    gl_Position = view_proj * (model * vec4(min(1.0, vertex_extrusion * max(0.0, aValue)) * aNormal + aPos, 1.0));
+
+    vec4 extruded_vertex;
+    switch (mesh_type) {
+        case 0: { // Open
+            normal = normalize(aCalculatedNormal);
+            extruded_vertex = model * vec4((vertex_extrusion * (value - pixel_discard_threshold)) * aNormal + aPos, 1.0);
+        } break;
+        case 1: { // Closed
+            normal = -normalize(aNormal);
+            extruded_vertex = model * vec4(aPos, 1.0);
+        } break;
+        case 2: { // Mirrored
+            normal = normalize(reflect(aCalculatedNormal, aNormal));
+            extruded_vertex = model * vec4((-vertex_extrusion * (value - pixel_discard_threshold)) * aNormal + aPos, 1.0);
+        } break;
+    }
+
+    frag_pos = vec3(extruded_vertex);
+    gl_Position = view_proj * extruded_vertex;
 }

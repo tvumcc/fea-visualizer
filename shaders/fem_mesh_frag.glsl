@@ -10,12 +10,12 @@ uniform vec3 c5;
 uniform vec3 c6;
 
 uniform float pixel_discard_threshold;
+uniform vec3 view_pos;
 
 vec3 get_color(float t) {
     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
 }
 
-uniform vec3 view_pos;
 
 in float value;
 in vec3 normal;
@@ -48,27 +48,27 @@ float G(vec3 N, vec3 V, vec3 L, float roughness) {
 }
 
 void main() {
-    if (pixel_discard_threshold != 0.0 && value < pixel_discard_threshold) discard;
+    if (pixel_discard_threshold != 0.0 && value < pixel_discard_threshold - 0.001) discard;
 
     vec3 N = normalize(normal);
     vec3 V = normalize(view_pos - frag_pos); 
 
     vec3 light_positions[4];
     vec3 light_colors[4];
-    light_positions[0] = vec3(1.0, 1.0, 1.0);
+    light_positions[0] = vec3(0.0, 0.0, 0.0);
     light_positions[1] = vec3(-1.0, 1.0, -1.0);
     light_positions[2] = vec3(-1.0, 1.0, 1.0);
     light_positions[3] = vec3(1.0, 1.0, -1.0);
 
 
-    light_colors[0] = 8.0 * vec3(1.0, 1.0, 1.0);
+    light_colors[0] = 3.0 * vec3(1.0, 1.0, 1.0);
     light_colors[1] = 8.0 * vec3(1.0, 1.0, 1.0);
     light_colors[2] = 8.0 * vec3(1.0, 1.0, 1.0);
     light_colors[3] = 8.0 * vec3(1.0, 1.0, 1.0);
 
     vec3 albedo = pow(get_color(value), vec3(2.2));
     float roughness = 0.8;
-    float metallic = 1.0; 
+    float metallic = 0.0; 
 
     vec3 Lo = vec3(0.0);
     for (int i = 0; i < 1; i++) {

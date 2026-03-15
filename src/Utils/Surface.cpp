@@ -310,15 +310,22 @@ void Surface::calculate_normals(float vertex_extrusion) {
 /**
  * Renders this surface to the screen.
  */
-void Surface::draw(bool wireframe, glm::vec3 camera_position) {
+void Surface::draw(bool wireframe, float pixel_discard_threshold, glm::vec3 camera_position) {
     if (initialized) {
         // Draw Colored Surface
         fem_mesh_shader->bind();
         fem_mesh_shader->set_mat4x4("model", glm::mat4(1.0f));
         fem_mesh_shader->set_vec3("view_pos", camera_position);
+        fem_mesh_shader->set_int("mesh_type", static_cast<int>(MeshType::Open));
         color_map->set_uniforms(*fem_mesh_shader);
         glBindVertexArray(vertex_array);
         glDrawElements(GL_TRIANGLES, triangles.size() * 3, GL_UNSIGNED_INT, 0);
+
+        if (pixel_discard_threshold != 0.0f) {
+            fem_mesh_shader->set_int("mesh_type", static_cast<int>(mesh_type));
+            glBindVertexArray(vertex_array);
+            glDrawElements(GL_TRIANGLES, triangles.size() * 3, GL_UNSIGNED_INT, 0);
+        }
 
         // Draw Wireframe
         if (wireframe) {
