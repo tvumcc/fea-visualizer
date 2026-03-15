@@ -13,6 +13,7 @@
 #include "Utils/ResourceManager.hpp"
 #include "Utils/Shader.hpp"
 #include "Utils/Surface.hpp"
+#include "Utils/EnvironmentMap.hpp"
 
 #include "FEM/FEMContext.hpp"
 #include "FEM/CPUSolver.hpp"
@@ -112,6 +113,7 @@ public:
     ResourceManager<Mesh> meshes;
     ResourceManager<AbstractShader> shaders;
     ResourceManager<ColorMap> color_maps;
+    ResourceManager<EnvironmentMap> environment_maps;
 
     std::string fem_mesh_directory = "assets/fem_meshes";
     std::vector<std::filesystem::path> fem_mesh_obj_paths;

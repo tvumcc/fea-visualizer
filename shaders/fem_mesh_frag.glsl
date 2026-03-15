@@ -53,14 +53,22 @@ void main() {
     vec3 N = normalize(normal);
     vec3 V = normalize(view_pos - frag_pos); 
 
-    vec3 light_positions[1];
-    vec3 light_colors[1];
+    vec3 light_positions[4];
+    vec3 light_colors[4];
     light_positions[0] = vec3(1.0, 1.0, 1.0);
-    light_colors[0] = vec3(1.0, 1.0, 1.0);
+    light_positions[1] = vec3(-1.0, 1.0, -1.0);
+    light_positions[2] = vec3(-1.0, 1.0, 1.0);
+    light_positions[3] = vec3(1.0, 1.0, -1.0);
 
-    vec3 albedo = pow(get_color(2.0 * value), vec3(2.2));
-    float roughness = 0.5;
-    float metallic = 0.1; 
+
+    light_colors[0] = 8.0 * vec3(1.0, 1.0, 1.0);
+    light_colors[1] = 8.0 * vec3(1.0, 1.0, 1.0);
+    light_colors[2] = 8.0 * vec3(1.0, 1.0, 1.0);
+    light_colors[3] = 8.0 * vec3(1.0, 1.0, 1.0);
+
+    vec3 albedo = pow(get_color(value), vec3(2.2));
+    float roughness = 0.8;
+    float metallic = 1.0; 
 
     vec3 Lo = vec3(0.0);
     for (int i = 0; i < 1; i++) {
@@ -68,7 +76,7 @@ void main() {
         vec3 H = normalize(V + L);
 
         float dist = length(light_positions[i] - frag_pos);
-        float attenuation = dist * dist;
+        float attenuation = (dist * dist);
         vec3 radiance = light_colors[i] / attenuation;
 
         vec3 F0 = mix(vec3(0.04), albedo, metallic);
@@ -88,7 +96,7 @@ void main() {
         Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }
 
-    vec3 ambient = vec3(0.4) * albedo;
+    vec3 ambient = vec3(0.2) * albedo;
     vec3 color = ambient + Lo;
 
     // color = color / (color + vec3(1.0));

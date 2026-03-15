@@ -34,6 +34,7 @@ void Application::load_resources() {
     // Meshes
     meshes.add("sphere", std::make_shared<Mesh>("assets/meshes/sphere.obj"));
     meshes.add("quad", std::make_shared<Mesh>("assets/meshes/quad.obj"));
+    meshes.add("cube", std::make_shared<Mesh>("assets/meshes/cube.obj"));
 
     // Shaders
     shaders.add("default", std::make_shared<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"));
@@ -42,6 +43,8 @@ void Application::load_resources() {
     shaders.add("vertex_color", std::make_shared<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"));
     shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
     shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
+    shaders.add("equirect_to_cube", std::make_shared<Shader>("shaders/equirect_to_cube_vert.glsl", "shaders/equirect_to_cube_frag.glsl"));
+    shaders.add("skybox", std::make_shared<Shader>("shaders/skybox_vert.glsl", "shaders/skybox_frag.glsl"));
 
     shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
     shaders.add("cgm_helper", std::make_shared<ComputeShader>("shaders/cgm_helper.glsl"));
@@ -111,6 +114,12 @@ void Application::load_resources() {
     settings.init_color_maps(color_maps);
     settings.init_equation_textures();
     settings.init_color_map_icon_textures();
+    
+    // Environment Maps
+    EnvironmentMap::equirect_to_cube_shader = static_pointer_cast<Shader>(shaders.get("equirect_to_cube"));
+    EnvironmentMap::skybox_shader = static_pointer_cast<Shader>(shaders.get("skybox"));
+    EnvironmentMap::cube_mesh = meshes.get("cube");
+    environment_maps.add("lakeside", std::make_shared<EnvironmentMap>("assets/hdr_images/lakeside_night_4k.hdr"));
 }
 
 /**
@@ -163,6 +172,8 @@ void Application::render() {
         shader.bind();
         shader.set_mat4x4("view_proj", this->camera->get_view_projection_matrix()); 
     });
+
+    environment_maps.get("lakeside")->draw(this->camera);
 
     pslg->draw_stencil_image();
     pslg->draw();
