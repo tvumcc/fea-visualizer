@@ -105,6 +105,7 @@ public:
     std::shared_ptr<Surface> surface;
     std::shared_ptr<FEMContext> fem_ctx;
     std::shared_ptr<BVH> bvh;
+    std::shared_ptr<EnvironmentMap> env_map;
 
     std::shared_ptr<Solver> solver;
     std::shared_ptr<CPUSolver> cpu_solver;

@@ -45,6 +45,7 @@ void Application::load_resources() {
     shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
     shaders.add("equirect_to_cube", std::make_shared<Shader>("shaders/equirect_to_cube_vert.glsl", "shaders/equirect_to_cube_frag.glsl"));
     shaders.add("skybox", std::make_shared<Shader>("shaders/skybox_vert.glsl", "shaders/skybox_frag.glsl"));
+    shaders.add("irradiance_convolution", std::make_shared<Shader>("shaders/skybox_vert.glsl", "shaders/irradiance_convolution_frag.glsl"));
 
     shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
     shaders.add("cgm_helper", std::make_shared<ComputeShader>("shaders/cgm_helper.glsl"));
@@ -118,6 +119,7 @@ void Application::load_resources() {
     // Environment Maps
     EnvironmentMap::equirect_to_cube_shader = static_pointer_cast<Shader>(shaders.get("equirect_to_cube"));
     EnvironmentMap::skybox_shader = static_pointer_cast<Shader>(shaders.get("skybox"));
+    EnvironmentMap::irradiance_convolution_shader = static_pointer_cast<Shader>(shaders.get("irradiance_convolution"));
     EnvironmentMap::cube_mesh = meshes.get("cube");
     environment_maps.add("lakeside", std::make_shared<EnvironmentMap>("assets/hdr_images/lakeside_night_4k.hdr"));
 }
@@ -156,6 +158,8 @@ void Application::load() {
 
     switch_color_map("Viridis");
 
+    env_map = environment_maps.get("lakeside");
+
     std::cout << glGetString(GL_VERSION) << "\n";
 }
 
@@ -173,12 +177,14 @@ void Application::render() {
         shader.set_mat4x4("view_proj", this->camera->get_view_projection_matrix()); 
     });
 
-    environment_maps.get("lakeside")->draw(this->camera);
+    env_map->draw(this->camera);
+    env_map->use();
 
     pslg->draw_stencil_image();
     pslg->draw();
 
     shaders.get("fem_mesh")->bind();
+    shaders.get("fem_mesh")->set_int("irradiance_map", 0);
     shaders.get("fem_mesh")->set_float("vertex_extrusion", settings.vertex_extrusion);
     shaders.get("fem_mesh")->set_float("pixel_discard_threshold", settings.pixel_discard_threshold);
     shaders.get("wireframe")->bind();

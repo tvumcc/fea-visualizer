@@ -12,6 +12,8 @@ uniform vec3 c6;
 uniform float pixel_discard_threshold;
 uniform vec3 view_pos;
 
+uniform samplerCube irradiance_map;
+
 vec3 get_color(float t) {
     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
 }
@@ -67,11 +69,14 @@ void main() {
     light_colors[3] = 8.0 * vec3(1.0, 1.0, 1.0);
 
     vec3 albedo = pow(get_color(value), vec3(2.2));
-    float roughness = 0.8;
-    float metallic = 0.0; 
+    float roughness = 0.0;
+    float metallic = 1.0; 
+    float ambient_occlusion = 1.0;
+
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
     vec3 Lo = vec3(0.0);
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 0; i++) {
         vec3 L = normalize(light_positions[i] - frag_pos);
         vec3 H = normalize(V + L);
 
@@ -79,7 +84,6 @@ void main() {
         float attenuation = (dist * dist);
         vec3 radiance = light_colors[i] / attenuation;
 
-        vec3 F0 = mix(vec3(0.04), albedo, metallic);
         vec3 fresnel = F(max(dot(H, V), 0.0), F0);
 
         vec3 numerator = D(N, H, roughness) * fresnel * G(N, V, L, roughness);
@@ -96,10 +100,15 @@ void main() {
         Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }
 
-    vec3 ambient = vec3(0.2) * albedo;
+    vec3 kS = F(max(dot(N, V), 0.0), F0);
+    vec3 kD = 1.0 - kS;
+    vec3 irradiance = texture(irradiance_map, N).rgb;
+    vec3 diffuse = irradiance * albedo;
+
+    vec3 ambient = kD * diffuse * ambient_occlusion;
     vec3 color = ambient + Lo;
 
-    // color = color / (color + vec3(1.0));
+    color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0 / 2.2));
 
     FragColor = vec4(color, 1.0);

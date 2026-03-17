@@ -12,6 +12,9 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
     int width, height, num_components;
     float* data = stbi_loadf(hdr_image_path, &width, &height, &num_components, 0);
 
+    int env_map_resolution = 1024;
+    int irradiance_map_resolution = 512;
+
     if (data) {
         glGenTextures(1, &hdr_texture);
         glBindTexture(GL_TEXTURE_2D, hdr_texture);
@@ -30,13 +33,13 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
 
         glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
         glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, env_map_resolution, env_map_resolution);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
 
         glGenTextures(1, &env_cubemap);
         glBindTexture(GL_TEXTURE_CUBE_MAP, env_cubemap);
         for (unsigned int i = 0; i < 6; i++)
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 512, 512, 0, GL_RGB, GL_FLOAT, nullptr);
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, env_map_resolution, env_map_resolution, 0, GL_RGB, GL_FLOAT, nullptr);
         glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -60,9 +63,9 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, hdr_texture);
 
-        glViewport(0, 0, 512, 512);
+        glViewport(0, 0, env_map_resolution, env_map_resolution);
         glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-        for (unsigned int i = 0; i < 6; ++i) {
+        for (int i = 0; i < 6; i++) {
             equirect_to_cube_shader->set_mat4x4("view", captureViews[i]);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                    GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, env_cubemap, 0);
@@ -70,6 +73,36 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
 
             cube_mesh->draw(*equirect_to_cube_shader, GL_TRIANGLES);
         }
+
+        glGenTextures(1, &irradiance_map);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, irradiance_map);
+        for (int i = 0; i < 6; i++)
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, irradiance_map_resolution, irradiance_map_resolution, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+        glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, irradiance_map_resolution, irradiance_map_resolution);
+
+        irradiance_convolution_shader->bind();
+        irradiance_convolution_shader->set_int("environment_map", 0);
+        irradiance_convolution_shader->set_mat4x4("proj", captureProjection);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, env_cubemap);
+
+        glViewport(0, 0, irradiance_map_resolution, irradiance_map_resolution);
+        glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+        for (int i = 0; i < 6; i++) {
+            irradiance_convolution_shader->set_mat4x4("view", captureViews[i]);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, irradiance_map, 0);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            cube_mesh->draw(*irradiance_convolution_shader, GL_TRIANGLES);
+        }
+
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     } else {
         std::cout << "Failed to load HDR image: " << hdr_image_path << "\n";
@@ -77,6 +110,9 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
 }
 
 void EnvironmentMap::draw(std::shared_ptr<Camera> camera) {
+    glBindTexture(GL_TEXTURE_CUBE_MAP, env_cubemap);
+    glActiveTexture(GL_TEXTURE0);
+
     skybox_shader->bind();
     skybox_shader->set_int("environment_map", 0);
     skybox_shader->set_mat4x4("proj", camera->get_projection_matrix());
@@ -85,4 +121,9 @@ void EnvironmentMap::draw(std::shared_ptr<Camera> camera) {
     glDepthFunc(GL_LEQUAL);
     cube_mesh->draw(*skybox_shader, GL_TRIANGLES);
     glDepthFunc(GL_LESS);
+}
+
+void EnvironmentMap::use() {
+    glBindTexture(GL_TEXTURE_CUBE_MAP, irradiance_map);
+    glActiveTexture(GL_TEXTURE0);
 }
