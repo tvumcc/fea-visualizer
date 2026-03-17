@@ -13,6 +13,8 @@ uniform float pixel_discard_threshold;
 uniform vec3 view_pos;
 
 uniform samplerCube irradiance_map;
+uniform samplerCube prefilter_map;
+uniform sampler2D brdf_texture;
 
 vec3 get_color(float t) {
     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
@@ -23,17 +25,23 @@ in float value;
 in vec3 normal;
 in vec3 frag_pos;
 
+const float PI = 3.1415926535;
+
 float D(vec3 N, vec3 H, float roughness) {
     float a2 = pow(roughness, 4);
     float NdotH2 = pow(max(dot(N, H), 0.0), 2);
     
     float numerator = a2;
-    float denominator = 3.1415926535 * pow(NdotH2 * (a2 - 1.0) + 1.0, 2);
+    float denominator = PI * pow(NdotH2 * (a2 - 1.0) + 1.0, 2);
     return numerator / denominator;
 }
 
 vec3 F(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+vec3 F_roughness(float cosTheta, vec3 F0, float roughness) {
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 float G_SchlickGGX(float NdotV, float roughness) {
@@ -53,7 +61,8 @@ void main() {
     if (pixel_discard_threshold != 0.0 && value < pixel_discard_threshold - 0.001) discard;
 
     vec3 N = normalize(normal);
-    vec3 V = normalize(view_pos - frag_pos); 
+    vec3 V = normalize(view_pos - frag_pos);
+    vec3 R = reflect(-V, N);
 
     vec3 light_positions[4];
     vec3 light_colors[4];
@@ -61,7 +70,6 @@ void main() {
     light_positions[1] = vec3(-1.0, 1.0, -1.0);
     light_positions[2] = vec3(-1.0, 1.0, 1.0);
     light_positions[3] = vec3(1.0, 1.0, -1.0);
-
 
     light_colors[0] = 3.0 * vec3(1.0, 1.0, 1.0);
     light_colors[1] = 8.0 * vec3(1.0, 1.0, 1.0);
@@ -94,18 +102,25 @@ void main() {
         vec3 kD = vec3(1.0) - kS;
         kD *= 1.0 - metallic;
 
-        const float PI = 3.1415926535;
-
         float NdotL = max(dot(N, L), 0.0);
         Lo += (kD * albedo / PI + specular) * radiance * NdotL;
     }
 
-    vec3 kS = F(max(dot(N, V), 0.0), F0);
+    vec3 fresnel = F_roughness(max(dot(N, V), 0.0), F0, roughness);
+
+    vec3 kS = fresnel;
     vec3 kD = 1.0 - kS;
+    kD *= 1.0 - metallic;
+
     vec3 irradiance = texture(irradiance_map, N).rgb;
     vec3 diffuse = irradiance * albedo;
 
-    vec3 ambient = kD * diffuse * ambient_occlusion;
+    const float MAX_REFLECTION_LOD = 4.0;
+    vec3 prefiltered_color = textureLod(prefilter_map, R, roughness * MAX_REFLECTION_LOD).rgb;
+    vec2 brdf_integral = texture(brdf_texture, vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec3 specular = prefiltered_color * (fresnel * brdf_integral.x + brdf_integral.y);
+
+    vec3 ambient = (kD * diffuse + specular) * ambient_occlusion;
     vec3 color = ambient + Lo;
 
     color = color / (color + vec3(1.0));

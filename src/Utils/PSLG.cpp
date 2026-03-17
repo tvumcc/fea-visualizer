@@ -77,6 +77,7 @@ void PSLG::draw_stencil_image() {
         textured_shader->set_int("texture_ID", 0);
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(0.0f, -0.001f, 0.0f));
+        model = glm::rotate(model, glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
         model = glm::scale(model, glm::vec3(stencil_scale, 1.0f, stencil_scale / stencil_aspect_ratio));
         textured_shader->set_mat4x4("model", model);
         glBindTexture(GL_TEXTURE_2D, stencil_texture);

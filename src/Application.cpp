@@ -46,6 +46,8 @@ void Application::load_resources() {
     shaders.add("equirect_to_cube", std::make_shared<Shader>("shaders/equirect_to_cube_vert.glsl", "shaders/equirect_to_cube_frag.glsl"));
     shaders.add("skybox", std::make_shared<Shader>("shaders/skybox_vert.glsl", "shaders/skybox_frag.glsl"));
     shaders.add("irradiance_convolution", std::make_shared<Shader>("shaders/skybox_vert.glsl", "shaders/irradiance_convolution_frag.glsl"));
+    shaders.add("prefilter_convolution", std::make_shared<Shader>("shaders/skybox_vert.glsl", "shaders/prefilter_convolution_frag.glsl"));
+    shaders.add("brdf_convolution", std::make_shared<Shader>("shaders/ndc_vert.glsl", "shaders/brdf_convolution_frag.glsl"));
 
     shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
     shaders.add("cgm_helper", std::make_shared<ComputeShader>("shaders/cgm_helper.glsl"));
@@ -115,12 +117,15 @@ void Application::load_resources() {
     settings.init_color_maps(color_maps);
     settings.init_equation_textures();
     settings.init_color_map_icon_textures();
-    
+
     // Environment Maps
     EnvironmentMap::equirect_to_cube_shader = static_pointer_cast<Shader>(shaders.get("equirect_to_cube"));
     EnvironmentMap::skybox_shader = static_pointer_cast<Shader>(shaders.get("skybox"));
     EnvironmentMap::irradiance_convolution_shader = static_pointer_cast<Shader>(shaders.get("irradiance_convolution"));
+    EnvironmentMap::prefilter_convolution_shader = static_pointer_cast<Shader>(shaders.get("prefilter_convolution"));
+    EnvironmentMap::brdf_convolution_shader = static_pointer_cast<Shader>(shaders.get("brdf_convolution"));
     EnvironmentMap::cube_mesh = meshes.get("cube");
+    EnvironmentMap::quad_mesh = meshes.get("quad");
     environment_maps.add("lakeside", std::make_shared<EnvironmentMap>("assets/hdr_images/lakeside_night_4k.hdr"));
 }
 
@@ -129,7 +134,7 @@ void Application::load_resources() {
  * initialize pointers to shared resources.
  */
 void Application::load() {
-    camera = std::make_shared<Camera>(); 
+    camera = std::make_shared<Camera>();
     framebuffer_size_callback(window, window_width, window_height);
 
     grid_interface = std::make_shared<GridInterface>();
@@ -147,7 +152,7 @@ void Application::load() {
     surface->wireframe_shader = static_pointer_cast<Shader>(shaders.get("wireframe"));
     surface->fem_mesh_shader = static_pointer_cast<Shader>(shaders.get("fem_mesh"));
     surface->smooth_normals_compute_shader = static_pointer_cast<ComputeShader>(shaders.get("smooth_normals"));
-    
+
     fem_ctx = std::make_shared<FEMContext>();
 
     cpu_solver = std::make_shared<CPUSolver>(fem_ctx);
@@ -174,17 +179,24 @@ void Application::render() {
 
     shaders.perform_action_on_all([this](AbstractShader& shader){
         shader.bind();
-        shader.set_mat4x4("view_proj", this->camera->get_view_projection_matrix()); 
+        shader.set_mat4x4("view_proj", this->camera->get_view_projection_matrix());
     });
 
     env_map->draw(this->camera);
-    env_map->use();
+    env_map->use(shaders.get("fem_mesh"));
 
     pslg->draw_stencil_image();
     pslg->draw();
 
+
+    shaders.get("textured")->bind();
+    shaders.get("textured")->set_int("texture_ID", 0);
+    shaders.get("textured")->set_mat4x4("model", glm::mat4(1.0f));
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, env_map->brdf_texture);
+    meshes.get("quad")->draw(*static_pointer_cast<Shader>(shaders.get("textured")), GL_TRIANGLES);
+
     shaders.get("fem_mesh")->bind();
-    shaders.get("fem_mesh")->set_int("irradiance_map", 0);
     shaders.get("fem_mesh")->set_float("vertex_extrusion", settings.vertex_extrusion);
     shaders.get("fem_mesh")->set_float("pixel_discard_threshold", settings.pixel_discard_threshold);
     shaders.get("wireframe")->bind();
