@@ -18,6 +18,10 @@ enum class BoundaryCondition {
     Neumann, 
 };
 
+/**
+ * A class that keeps track of data needed for the finite element method
+ * such as matrices, nodal value maps, equation parameters, and boundary conditions.
+ */
 class FEMContext {
 public:
     std::shared_ptr<Surface> surface;

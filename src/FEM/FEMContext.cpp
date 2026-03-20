@@ -4,6 +4,9 @@
 
 #include <iostream>
 
+/**
+ * Creates a FEMContext
+ */
 FEMContext::FEMContext() {
     parameters[Equation::Heat] = std::make_shared<HeatParameters>();
     parameters[Equation::Advection_Diffusion] = std::make_shared<AdvectionDiffusionParameters>();
@@ -11,6 +14,10 @@ FEMContext::FEMContext() {
     parameters[Equation::Reaction_Diffusion] = std::make_shared<ReactionDiffusionParameters>();
 }
 
+/**
+ * Initializes this FEMContext using a new surface.
+ * This results in a reassembly of all of the FEM matrices.
+ */
 void FEMContext::init_from_surface(std::shared_ptr<Surface> surface) {
     if (surface->initialized) {
         this->surface = surface;
@@ -19,6 +26,10 @@ void FEMContext::init_from_surface(std::shared_ptr<Surface> surface) {
     }
 }
 
+/**
+ * Returns the number of nodes on the FEM mesh regardless of whether
+ * they're unknown or not
+ */
 unsigned int FEMContext::num_nodes() {
     return surface->vertices.size();
 }
@@ -190,6 +201,9 @@ void FEMContext::assemble_advection_matrix(Eigen::Vector3f velocity) {
     advection_matrix.makeCompressed();
 }
 
+/**
+ * Returns the maximum number of nonzero entries in each row over all of the matrices
+ */
 int FEMContext::compute_max_row_nonzeros() {
     Eigen::SparseMatrix<float, Eigen::RowMajor> A = stiffness_matrix;
 

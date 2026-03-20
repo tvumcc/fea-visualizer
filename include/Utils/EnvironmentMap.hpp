@@ -7,6 +7,10 @@
 
 #include <memory>
 
+/**
+ * Stores different cubemaps to be used in image based lighting.
+ * Also supports the drawing of a skybox around the scene.
+ */
 class EnvironmentMap {
 public:
     static inline std::shared_ptr<Shader> equirect_to_cube_shader = nullptr;
@@ -21,12 +25,6 @@ public:
 
     void draw(std::shared_ptr<Camera> camera);
     void use(std::shared_ptr<AbstractShader> shader);
-
-    bool init_hdr_texture(const char* hdr_image_path);
-    void init_env_map();
-    void init_irradiance_map();
-    void init_prefilter_map();
-    void init_brdf_texture();
 private:
     unsigned int hdr_texture, env_cubemap, irradiance_map, prefilter_map, brdf_texture;
     unsigned int captureFBO, captureRBO;
@@ -45,4 +43,10 @@ private:
         glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
         glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f))
     };
+
+    bool init_hdr_texture(const char* hdr_image_path);
+    void init_env_map();
+    void init_irradiance_map();
+    void init_prefilter_map();
+    void init_brdf_texture();
 };

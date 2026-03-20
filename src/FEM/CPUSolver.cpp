@@ -1,27 +1,14 @@
 #include "FEM/CPUSolver.hpp"
 
+/**
+ * Creates a CPUSolver that points to a FEMContext
+ */
 CPUSolver::CPUSolver(std::shared_ptr<FEMContext> fem_ctx) {
     this->fem_ctx = fem_ctx;
 }
 
-bool CPUSolver::has_numerical_instability() {
-    for (int i = 0; i < u.size(); i++) {
-        if (u.coeff(i) > 1e4f || v.coeff(i) > 1e4f) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void CPUSolver::clear_values() {
-    u.resize(fem_ctx->num_unknowns());
-    u.setZero();
-    v.resize(fem_ctx->num_unknowns());
-    v.setZero();
-}
-
 /**
- * Map unknown values from the surface to an Eigen::VectorXf.
+ * Map unknown values from the surface to a returned Eigen::VectorXf.
  */
 Eigen::VectorXf CPUSolver::get_surface_value_vector() {
     Eigen::VectorXf vector;
@@ -35,6 +22,8 @@ Eigen::VectorXf CPUSolver::get_surface_value_vector() {
 
 /**
  * Map unknown values from an Eigen::VectorXf back onto the surface.
+ * 
+ * @param vector Values to map onto the surface
  */
 void CPUSolver::map_vector_to_surface(const Eigen::VectorXf& vector) {
     for (int i = 0; i < fem_ctx->idx_map.size(); i++) {
@@ -46,6 +35,32 @@ void CPUSolver::map_vector_to_surface(const Eigen::VectorXf& vector) {
     }
 }
 
+/**
+ * Returns true if numerical instability is detected in the solution vector(s)
+ */
+bool CPUSolver::has_numerical_instability() {
+    for (int i = 0; i < u.size(); i++) {
+        if (u.coeff(i) > 1e4f || v.coeff(i) > 1e4f) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Adjusts the size of the solution vectors to match the number of unknowns
+ * and sets all of the values to zero
+ */
+void CPUSolver::clear_values() {
+    u.resize(fem_ctx->num_unknowns());
+    u.setZero();
+    v.resize(fem_ctx->num_unknowns());
+    v.setZero();
+}
+
+/**
+ * Advance time by one time step based on the selected equation in the associated FEMContext
+ */
 void CPUSolver::advance_time() {
     Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower|Eigen::Upper> cg;
 

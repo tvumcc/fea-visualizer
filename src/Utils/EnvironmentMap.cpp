@@ -7,6 +7,9 @@
 
 #include <iostream>
 
+/**
+ * Creates an EnvironmentMap from an HDRI (specified by file path)
+ */
 EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
     if (init_hdr_texture(hdr_image_path)) {
         glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
@@ -22,6 +25,43 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
     }
 }
 
+/**
+ * Draw the base environment cubemap (the one that comes directly from the HDRI, without convolution) as a skybox
+ */
+void EnvironmentMap::draw(std::shared_ptr<Camera> camera) {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, env_cubemap);
+
+    skybox_shader->bind();
+    skybox_shader->set_int("environment_map", 0);
+    skybox_shader->set_mat4x4("proj", camera->get_projection_matrix());
+    skybox_shader->set_mat4x4("view", camera->get_view_matrix());
+
+    glDepthFunc(GL_LEQUAL);
+    cube_mesh->draw(*skybox_shader, GL_TRIANGLES);
+    glDepthFunc(GL_LESS);
+}
+
+/**
+ * Bind the underlying maps associated with this EnvironmentMap
+ */
+void EnvironmentMap::use(std::shared_ptr<AbstractShader> shader) {
+    shader->bind();
+    shader->set_int("irradiance_map", 0);
+    shader->set_int("prefilter_map", 1);
+    shader->set_int("brdf_texture", 2);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, irradiance_map);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter_map);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, brdf_texture);
+}
+
+/**
+ * Loads in an HDR image from a file
+ */
 bool EnvironmentMap::init_hdr_texture(const char* hdr_image_path) {
     stbi_set_flip_vertically_on_load(true);
     int width, height, num_components;
@@ -43,6 +83,9 @@ bool EnvironmentMap::init_hdr_texture(const char* hdr_image_path) {
     return valid;
 }
 
+/**
+ * Initializes the base environment map by projecting the equirectangular HDR image to a cubemap
+ */
 void EnvironmentMap::init_env_map() {
     glGenFramebuffers(1, &captureFBO);
     glGenRenderbuffers(1, &captureRBO);
@@ -82,6 +125,9 @@ void EnvironmentMap::init_env_map() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+/**
+ * Precomputes the diffuse irradiance map
+ */
 void EnvironmentMap::init_irradiance_map() {
     glGenTextures(1, &irradiance_map);
     glBindTexture(GL_TEXTURE_CUBE_MAP, irradiance_map);
@@ -113,6 +159,9 @@ void EnvironmentMap::init_irradiance_map() {
     }
 }
 
+/**
+ * Precomputes the pre-filter map used for specular image based lighting
+ */
 void EnvironmentMap::init_prefilter_map() {
     glGenTextures(1, &prefilter_map);
     glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter_map);
@@ -151,6 +200,9 @@ void EnvironmentMap::init_prefilter_map() {
     }
 }
 
+/**
+ * Precomputes the BRDF integration lookup texture used for specular image based lighting
+ */
 void EnvironmentMap::init_brdf_texture() {
     glGenTextures(1, &brdf_texture);
     glBindTexture(GL_TEXTURE_2D, brdf_texture);
@@ -169,32 +221,4 @@ void EnvironmentMap::init_brdf_texture() {
     brdf_convolution_shader->bind();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     quad_mesh->draw(*brdf_convolution_shader, GL_TRIANGLES);
-}
-
-void EnvironmentMap::draw(std::shared_ptr<Camera> camera) {
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, env_cubemap);
-
-    skybox_shader->bind();
-    skybox_shader->set_int("environment_map", 0);
-    skybox_shader->set_mat4x4("proj", camera->get_projection_matrix());
-    skybox_shader->set_mat4x4("view", camera->get_view_matrix());
-
-    glDepthFunc(GL_LEQUAL);
-    cube_mesh->draw(*skybox_shader, GL_TRIANGLES);
-    glDepthFunc(GL_LESS);
-}
-
-void EnvironmentMap::use(std::shared_ptr<AbstractShader> shader) {
-    shader->bind();
-    shader->set_int("irradiance_map", 0);
-    shader->set_int("prefilter_map", 1);
-    shader->set_int("brdf_texture", 2);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, irradiance_map);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter_map);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, brdf_texture);
 }

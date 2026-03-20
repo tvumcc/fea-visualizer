@@ -3,13 +3,16 @@
 #include "FEM/Solver.hpp"
 #include "FEM/FEMContext.hpp"
 
+/**
+ * A solver for finite element systems that uses Eigen, on the CPU
+ */
 class CPUSolver : public Solver {
 public:
     CPUSolver(std::shared_ptr<FEMContext> fem_ctx);
 
-    void advance_time() override;
-    void clear_values() override;
     bool has_numerical_instability() override;
+    void clear_values() override;
+    void advance_time() override;
 private:
     Eigen::VectorXf u;
     Eigen::VectorXf v;

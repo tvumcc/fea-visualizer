@@ -19,6 +19,10 @@ enum class BindingPoint {
     VectorV,
 };
 
+/**
+ * A solver for finite element systems that uses the conjugate gradient method
+ * implemented for the GPU on compute shaders
+ */
 class GPUSolver : public Solver {
 public:
     std::shared_ptr<ComputeShader> cgm_compute_shader;
