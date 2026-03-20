@@ -76,12 +76,12 @@ void PSLG::draw_stencil_image() {
         textured_shader->bind();
         textured_shader->set_int("texture_ID", 0);
         glm::mat4 model = glm::mat4(1.0f);
+        model = glm::scale(model, glm::vec3(stencil_scale, 1.0f, stencil_scale / stencil_aspect_ratio));
         model = glm::translate(model, glm::vec3(0.0f, -0.001f, 0.0f));
         model = glm::rotate(model, glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(stencil_scale, 1.0f, stencil_scale / stencil_aspect_ratio));
         textured_shader->set_mat4x4("model", model);
-        glBindTexture(GL_TEXTURE_2D, stencil_texture);
         glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, stencil_texture);
         quad_mesh->draw(*textured_shader, GL_TRIANGLES);
     }
 }
@@ -124,10 +124,13 @@ void PSLG::add_hole(glm::vec3 hole) {
  * Load in the stencil image with the given file path to an image
  */
 void PSLG::load_stencil_image(std::string path) {
+    std::cout << "loading image: " << path << "\n";
     int width, height, channels;
     stbi_set_flip_vertically_on_load(true);
     unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
+    std::cout << "Channels: " << channels << "\n";
 
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glGenTextures(1, &stencil_texture);
     glBindTexture(GL_TEXTURE_2D, stencil_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -135,7 +138,6 @@ void PSLG::load_stencil_image(std::string path) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, channels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
     stbi_image_free(data);
 
     stencil_aspect_ratio = (float)width / height;

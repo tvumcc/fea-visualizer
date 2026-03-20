@@ -37,21 +37,21 @@ void Application::load_resources() {
     meshes.add("cube", std::make_shared<Mesh>("assets/meshes/cube.obj"));
 
     // Shaders
-    shaders.add("default", std::make_shared<Shader>("shaders/default_vert.glsl", "shaders/default_frag.glsl"));
-    shaders.add("solid_color", std::make_shared<Shader>("shaders/solid_color_vert.glsl", "shaders/solid_color_frag.glsl"));
-    shaders.add("textured", std::make_shared<Shader>("shaders/solid_color_vert.glsl", "shaders/textured_frag.glsl"));
-    shaders.add("vertex_color", std::make_shared<Shader>("shaders/vertex_color_vert.glsl", "shaders/vertex_color_frag.glsl"));
-    shaders.add("fem_mesh", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/fem_mesh_frag.glsl"));
-    shaders.add("wireframe", std::make_shared<Shader>("shaders/fem_mesh_vert.glsl", "shaders/solid_color_frag.glsl"));
-    shaders.add("equirect_to_cube", std::make_shared<Shader>("shaders/equirect_to_cube_vert.glsl", "shaders/equirect_to_cube_frag.glsl"));
-    shaders.add("skybox", std::make_shared<Shader>("shaders/skybox_vert.glsl", "shaders/skybox_frag.glsl"));
-    shaders.add("irradiance_convolution", std::make_shared<Shader>("shaders/skybox_vert.glsl", "shaders/irradiance_convolution_frag.glsl"));
-    shaders.add("prefilter_convolution", std::make_shared<Shader>("shaders/skybox_vert.glsl", "shaders/prefilter_convolution_frag.glsl"));
-    shaders.add("brdf_convolution", std::make_shared<Shader>("shaders/ndc_vert.glsl", "shaders/brdf_convolution_frag.glsl"));
+    shaders.add("solid_color", std::make_shared<Shader>("shaders/solid_color.vert", "shaders/solid_color.frag"));
+    shaders.add("textured", std::make_shared<Shader>("shaders/solid_color.vert", "shaders/textured.frag"));
+    shaders.add("vertex_color", std::make_shared<Shader>("shaders/vertex_color.vert", "shaders/vertex_color.frag"));
+    shaders.add("wireframe", std::make_shared<Shader>("shaders/PBR/fem_mesh.vert", "shaders/solid_color.frag"));
 
-    shaders.add("cgm", std::make_shared<ComputeShader>("shaders/cgm.glsl"));
-    shaders.add("cgm_helper", std::make_shared<ComputeShader>("shaders/cgm_helper.glsl"));
-    shaders.add("smooth_normals", std::make_shared<ComputeShader>("shaders/smooth_normals.glsl"));
+    shaders.add("fem_mesh", std::make_shared<Shader>("shaders/PBR/fem_mesh.vert", "shaders/PBR/fem_mesh.frag"));
+    shaders.add("equirect_to_cube", std::make_shared<Shader>("shaders/PBR/equirect_to_cube.vert", "shaders/PBR/equirect_to_cube.frag"));
+    shaders.add("skybox", std::make_shared<Shader>("shaders/PBR/skybox.vert", "shaders/PBR/skybox.frag"));
+    shaders.add("irradiance_convolution", std::make_shared<Shader>("shaders/PBR/skybox.vert", "shaders/PBR/irradiance_convolution.frag"));
+    shaders.add("prefilter_convolution", std::make_shared<Shader>("shaders/PBR/skybox.vert", "shaders/PBR/prefilter_convolution.frag"));
+    shaders.add("brdf_convolution", std::make_shared<Shader>("shaders/PBR/ndc.vert", "shaders/PBR/brdf_convolution.frag"));
+
+    shaders.add("cgm", std::make_shared<ComputeShader>("shaders/FEM/cgm.glsl"));
+    shaders.add("cgm_helper", std::make_shared<ComputeShader>("shaders/FEM/cgm_helper.glsl"));
+    shaders.add("smooth_normals", std::make_shared<ComputeShader>("shaders/FEM/smooth_normals.glsl"));
 
     // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same. (as well as the image icon file)
     color_maps.add("Viridis", std::make_shared<ColorMap>(
@@ -188,13 +188,6 @@ void Application::render() {
     pslg->draw_stencil_image();
     pslg->draw();
 
-
-    shaders.get("textured")->bind();
-    shaders.get("textured")->set_int("texture_ID", 0);
-    shaders.get("textured")->set_mat4x4("model", glm::mat4(1.0f));
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, env_map->brdf_texture);
-    meshes.get("quad")->draw(*static_pointer_cast<Shader>(shaders.get("textured")), GL_TRIANGLES);
 
     shaders.get("fem_mesh")->bind();
     shaders.get("fem_mesh")->set_float("vertex_extrusion", settings.vertex_extrusion);
@@ -664,7 +657,8 @@ void Application::clear_holes() {
     pslg->clear_holes();
 }
 void Application::clear_solver() {
-    solver->clear_values();
+    cpu_solver->clear_values();
+    gpu_solver->clear_values();
     surface->clear_values();
 }
 void Application::delete_surface() {
@@ -678,6 +672,7 @@ void Application::init_surface_from_pslg() {
     try {
         surface->init_from_PSLG(*pslg);
         fem_ctx->init_from_surface(surface);
+        cpu_solver->clear_values();
         gpu_solver->init();
         bvh = std::make_shared<BVH>(surface, settings.bvh_depth);
         switch_mode(InteractMode::Brush);

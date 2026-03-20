@@ -15,7 +15,7 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
 
     int env_map_resolution = 1024;
     int irradiance_map_resolution = 512;
-    int prefilter_map_resolution = 128;
+    int prefilter_map_resolution = 1024;
     int brdf_texture_resolution = 512;
 
     if (data) {
@@ -112,7 +112,6 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
         }
 
         // Generating the Pre-filter map
-
         glGenTextures(1, &prefilter_map);
         glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter_map);
         for (int i = 0; i < 6; i++)
@@ -133,8 +132,8 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
         glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
         int max_mip_levels = 5;
         for (int mip = 0; mip < max_mip_levels; mip++) {
-            int mip_width = 128 * std::pow(0.5, mip);
-            int mip_height = 128 * std::pow(0.5, mip);
+            int mip_width = prefilter_map_resolution * std::pow(0.5, mip);
+            int mip_height = prefilter_map_resolution * std::pow(0.5, mip);
             glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
             glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mip_width, mip_height);
             glViewport(0, 0, mip_width, mip_height);
@@ -177,7 +176,7 @@ EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
 
 void EnvironmentMap::draw(std::shared_ptr<Camera> camera) {
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter_map);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, env_cubemap);
 
     skybox_shader->bind();
     skybox_shader->set_int("environment_map", 0);
