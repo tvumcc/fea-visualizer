@@ -45,7 +45,7 @@ void main() {
     vec3 V = normalize(view_pos - frag_pos);
     vec3 R = reflect(-V, N);
 
-    vec3 albedo = pow(get_color(value), vec3(2.2));
+    vec3 albedo = pow(get_color(max(0.0, value)), vec3(2.2));
     float roughness = 0.0;
     float metallic = 0.1;
 

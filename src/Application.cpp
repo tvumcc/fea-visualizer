@@ -15,7 +15,6 @@ Application::Application() {
     init_opengl_window(window_width, window_height);
     init_imgui("assets/NotoSans.ttf", 20);
 
-    load_resources();
     load();
 }
 Application::~Application() {
@@ -27,143 +26,47 @@ Application::~Application() {
 }
 
 /**
- * Load resources that are shared between multiple classes in the 
- * program such as Shaders, Meshes, and ColorMaps.
- */
-void Application::load_resources() {
-    // Meshes
-    meshes.add("sphere", std::make_shared<Mesh>("assets/meshes/sphere.obj"));
-    meshes.add("quad", std::make_shared<Mesh>("assets/meshes/quad.obj"));
-    meshes.add("cube", std::make_shared<Mesh>("assets/meshes/cube.obj"));
-
-    // Shaders
-    shaders.add("solid_color", std::make_shared<Shader>("shaders/solid_color.vert", "shaders/solid_color.frag"));
-    shaders.add("textured", std::make_shared<Shader>("shaders/solid_color.vert", "shaders/textured.frag"));
-    shaders.add("vertex_color", std::make_shared<Shader>("shaders/vertex_color.vert", "shaders/vertex_color.frag"));
-    shaders.add("wireframe", std::make_shared<Shader>("shaders/PBR/fem_mesh.vert", "shaders/solid_color.frag"));
-
-    shaders.add("fem_mesh", std::make_shared<Shader>("shaders/PBR/fem_mesh.vert", "shaders/PBR/fem_mesh.frag"));
-    shaders.add("equirect_to_cube", std::make_shared<Shader>("shaders/PBR/equirect_to_cube.vert", "shaders/PBR/equirect_to_cube.frag"));
-    shaders.add("skybox", std::make_shared<Shader>("shaders/PBR/skybox.vert", "shaders/PBR/skybox.frag"));
-    shaders.add("irradiance_convolution", std::make_shared<Shader>("shaders/PBR/skybox.vert", "shaders/PBR/irradiance_convolution.frag"));
-    shaders.add("prefilter_convolution", std::make_shared<Shader>("shaders/PBR/skybox.vert", "shaders/PBR/prefilter_convolution.frag"));
-    shaders.add("brdf_convolution", std::make_shared<Shader>("shaders/PBR/ndc.vert", "shaders/PBR/brdf_convolution.frag"));
-
-    shaders.add("cgm", std::make_shared<ComputeShader>("shaders/FEM/cgm.glsl"));
-    shaders.add("cgm_helper", std::make_shared<ComputeShader>("shaders/FEM/cgm_helper.glsl"));
-    shaders.add("smooth_normals", std::make_shared<ComputeShader>("shaders/FEM/smooth_normals.glsl"));
-
-    // Color Maps, make sure the name in the ResourceManager and the ColorMap are the same. (as well as the image icon file)
-    color_maps.add("Viridis", std::make_shared<ColorMap>(
-        "Viridis",
-        std::array<glm::vec3, 7>({
-            glm::vec3(0.274344,0.004462,0.331359),
-            glm::vec3(0.108915,1.397291,1.388110),
-            glm::vec3(-0.319631,0.243490,0.156419),
-            glm::vec3(-4.629188,-5.882803,-19.646115),
-            glm::vec3(6.181719,14.388598,57.442181),
-            glm::vec3(4.876952,-13.955112,-66.125783),
-            glm::vec3(-5.513165,4.709245,26.582180),
-        })
-    ));
-    color_maps.add("Inferno", std::make_shared<ColorMap>(
-        "Inferno",
-        std::array<glm::vec3, 7>({
-            glm::vec3(0.000129,0.001094,-0.041044),
-            glm::vec3(0.083266,0.574933,4.155398),
-            glm::vec3(11.783686,-4.013093,-16.439814),
-            glm::vec3(-42.246539,17.689298,45.210269),
-            glm::vec3(78.087062,-33.838649,-83.264061),
-            glm::vec3(-72.108852,32.950143,74.479447),
-            glm::vec3(25.378501,-12.368929,-23.407604),
-        })
-    ));
-    color_maps.add("Rainbow", std::make_shared<ColorMap>(
-        "Rainbow",
-        std::array<glm::vec3, 7>({
-            glm::vec3(0.503560,-0.002932,1.000009),
-            glm::vec3(-1.294985,3.144463,0.001872),
-            glm::vec3(-16.971202,0.031355,-1.232219),
-            glm::vec3(97.134102,-5.180126,-0.029721),
-            glm::vec3(-172.585487,-0.338714,0.316782),
-            glm::vec3(131.971426,3.514534,-0.061568),
-            glm::vec3(-37.784412,-1.171512,0.003376),
-        })
-    ));
-    color_maps.add("Twilight", std::make_shared<ColorMap>(
-        "Twilight",
-        std::array<glm::vec3, 7>({
-            glm::vec3(0.996106,0.851653,0.940566),
-            glm::vec3(-6.529620,-0.183448,-3.940750),
-            glm::vec3(40.899579,-7.894242,38.569228),
-            glm::vec3(-155.212979,4.404793,-167.925730),
-            glm::vec3(296.687222,24.084913,315.087856),
-            glm::vec3(-261.270519,-29.995422,-266.972991),
-            glm::vec3(85.335349,9.602600,85.227117),
-        })
-    ));
-    color_maps.add("Coolwarm", std::make_shared<ColorMap>(
-        "Coolwarm",
-        std::array<glm::vec3, 7>({
-            glm::vec3(0.227376,0.286898,0.752999),
-            glm::vec3(1.204846,2.314886,1.563499),
-            glm::vec3(0.102341,-7.369214,-1.860252),
-            glm::vec3(2.218624,32.578457,-1.643751),
-            glm::vec3(-5.076863,-75.374676,-3.704589),
-            glm::vec3(1.336276,73.453060,9.595678),
-            glm::vec3(0.694723,-25.863102,-4.558659),
-        })
-    ));
-    settings.init_color_maps(color_maps);
-    settings.init_equation_textures();
-    settings.init_color_map_icon_textures();
-
-    // Environment Maps
-    EnvironmentMap::equirect_to_cube_shader = static_pointer_cast<Shader>(shaders.get("equirect_to_cube"));
-    EnvironmentMap::skybox_shader = static_pointer_cast<Shader>(shaders.get("skybox"));
-    EnvironmentMap::irradiance_convolution_shader = static_pointer_cast<Shader>(shaders.get("irradiance_convolution"));
-    EnvironmentMap::prefilter_convolution_shader = static_pointer_cast<Shader>(shaders.get("prefilter_convolution"));
-    EnvironmentMap::brdf_convolution_shader = static_pointer_cast<Shader>(shaders.get("brdf_convolution"));
-    EnvironmentMap::cube_mesh = meshes.get("cube");
-    EnvironmentMap::quad_mesh = meshes.get("quad");
-    environment_maps.add("lakeside", std::make_shared<EnvironmentMap>("assets/hdr_images/lakeside_night_4k.hdr"));
-}
-
-/**
  * This function is called before the main loop and is primarily used to
  * initialize pointers to shared resources.
  */
 void Application::load() {
+    as.window = window;
+    as.load_all_assets();
+
+    settings.init_color_maps(as.color_maps);
+    settings.init_equation_textures();
+    settings.init_color_map_icon_textures();
+
     camera = std::make_shared<Camera>();
     framebuffer_size_callback(window, window_width, window_height);
 
     grid_interface = std::make_shared<GridInterface>();
-    grid_interface->solid_color_shader = static_pointer_cast<Shader>(shaders.get("solid_color"));
-    grid_interface->vertex_color_shader = static_pointer_cast<Shader>(shaders.get("vertex_color"));
-    grid_interface->sphere_mesh = meshes.get("sphere");
+    grid_interface->solid_color_shader = as.get_shader("solid_color");
+    grid_interface->vertex_color_shader = as.get_shader("vertex_color");
+    grid_interface->sphere_mesh = as.get_mesh("sphere");
 
     pslg = std::make_shared<PSLG>();
-    pslg->solid_color_shader = static_pointer_cast<Shader>(shaders.get("solid_color"));
-    pslg->textured_shader = static_pointer_cast<Shader>(shaders.get("textured"));
-    pslg->sphere_mesh = meshes.get("sphere");
-    pslg->quad_mesh = meshes.get("quad");
+    pslg->solid_color_shader = as.get_shader("solid_color");
+    pslg->textured_shader = as.get_shader("textured");
+    pslg->sphere_mesh = as.get_mesh("sphere");
+    pslg->quad_mesh = as.get_mesh("quad");
 
     surface = std::make_shared<Surface>();
-    surface->wireframe_shader = static_pointer_cast<Shader>(shaders.get("wireframe"));
-    surface->fem_mesh_shader = static_pointer_cast<Shader>(shaders.get("fem_mesh"));
-    surface->smooth_normals_compute_shader = static_pointer_cast<ComputeShader>(shaders.get("smooth_normals"));
+    surface->wireframe_shader = as.get_shader("wireframe");
+    surface->fem_mesh_shader = as.get_shader("fem_mesh");
+    surface->smooth_normals_compute_shader = as.get_compute_shader("smooth_normals");
 
     fem_ctx = std::make_shared<FEMContext>();
 
     cpu_solver = std::make_shared<CPUSolver>(fem_ctx);
     gpu_solver = std::make_shared<GPUSolver>(fem_ctx);
-    gpu_solver->cgm_compute_shader = static_pointer_cast<ComputeShader>(shaders.get("cgm"));
-    gpu_solver->cgm_helper_compute_shader = static_pointer_cast<ComputeShader>(shaders.get("cgm_helper"));
+    gpu_solver->cgm_compute_shader = as.get_compute_shader("cgm");
+    gpu_solver->cgm_helper_compute_shader = as.get_compute_shader("cgm_helper");
     switch_solver(settings.use_gpu);
 
     switch_color_map("Viridis");
 
-    env_map = environment_maps.get("lakeside");
+    env_map = as.get_environment_map("lakeside");
 
     std::cout << glGetString(GL_VERSION) << "\n";
 }
@@ -177,23 +80,22 @@ void Application::render() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
 
-    shaders.perform_action_on_all([this](AbstractShader& shader){
+    as.shaders.perform_action_on_all([this](AbstractShader& shader){
         shader.bind();
         shader.set_mat4x4("view_proj", this->camera->get_view_projection_matrix());
     });
 
     env_map->draw(this->camera);
-    env_map->use(shaders.get("fem_mesh"));
+    env_map->use(as.get_shader("fem_mesh"));
 
     pslg->draw_stencil_image();
     pslg->draw();
 
-
-    shaders.get("fem_mesh")->bind();
-    shaders.get("fem_mesh")->set_float("vertex_extrusion", settings.vertex_extrusion);
-    shaders.get("fem_mesh")->set_float("pixel_discard_threshold", settings.pixel_discard_threshold);
-    shaders.get("wireframe")->bind();
-    shaders.get("wireframe")->set_float("vertex_extrusion", settings.vertex_extrusion);
+    as.get_shader("fem_mesh")->bind();
+    as.get_shader("fem_mesh")->set_float("vertex_extrusion", settings.vertex_extrusion);
+    as.get_shader("fem_mesh")->set_float("pixel_discard_threshold", settings.pixel_discard_threshold);
+    as.get_shader("wireframe")->bind();
+    as.get_shader("wireframe")->set_float("vertex_extrusion", settings.vertex_extrusion);
     surface->calculate_normals(settings.vertex_extrusion);
     surface->draw(settings.draw_surface_wireframe, settings.pixel_discard_threshold, camera->get_camera_position());
 
@@ -226,7 +128,6 @@ void Application::render_gui() {
     colors[ImGuiCol_Header] = ImVec4(0.46f, 0.26f, 0.98f, 0.40f);
     colors[ImGuiCol_HeaderHovered] = ImVec4(0.60f, 0.26f, 0.98f, 0.40f);
     colors[ImGuiCol_HeaderActive] = ImVec4(0.34f, 0.26f, 0.98f, 0.40f);
-
 
     ImGui::SeparatorText("Camera");
     if (ImGui::CollapsingHeader("Camera Controls", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -590,11 +491,12 @@ void Application::render_gui() {
  */
 void Application::run() {
     while (!glfwWindowShouldClose(window)) {
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
         const ImGuiViewport *main_viewport = ImGui::GetMainViewport();
+
         ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y));
         ImGui::SetNextWindowSize(ImVec2(gui_width, main_viewport->WorkSize.y));
         if (gui_visible)
@@ -609,10 +511,13 @@ void Application::run() {
         if (settings.interact_mode == InteractMode::Brush && glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && !ImGui::GetIO().WantCaptureMouse && !(glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS))
             brush_idx = brush(get_world_ray_from_mouse(), camera->get_camera_position(), settings.brush_strength);
 
-        if (fem_ctx->surface && settings.use_gpu) gpu_solver->brush(brush_idx, settings.brush_strength);
-        if (fem_ctx->surface && !settings.paused) {
+        if (fem_ctx->surface && settings.use_gpu)
+            gpu_solver->brush(brush_idx, settings.brush_strength);
+        if (fem_ctx->surface && !settings.paused)
+        {
             solver->advance_time();
-            if (solver->has_numerical_instability()) {
+            if (solver->has_numerical_instability())
+            {
                 clear_solver();
                 settings.paused = true;
                 settings.error_message = "Numerical instability detected!\nTry changing the solver's parameters or brush strength.\nClearing solver values and pausing...";
@@ -620,7 +525,8 @@ void Application::run() {
             }
         }
 
-        if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+        if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove))
+        {
             ImGui::Text(settings.error_message.c_str());
             if (ImGui::Button("Close"))
                 ImGui::CloseCurrentPopup();
@@ -629,18 +535,18 @@ void Application::run() {
 
         if (gui_visible)
             render_gui();
-        if (surface->initialized && !settings.use_gpu) {
+        if (surface->initialized && !settings.use_gpu)
+        {
             surface->load_value_buffer();
         }
         render();
         if (gui_visible)
             ImGui::End();
 
-		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-		glfwSwapBuffers(window);
-		glfwPollEvents();
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        glfwSwapBuffers(window);
+        glfwPollEvents();
     }
 }
 
@@ -723,7 +629,7 @@ void Application::switch_color_map(const char* new_color_map) {
     for (int i = 0; i < settings.color_maps.size(); i++) {
         if (std::string(settings.color_maps[i]) == std::string(new_color_map)) {
             settings.selected_color_map = i;
-            surface->color_map = color_maps.get(new_color_map);
+            surface->color_map = as.get_color_map(new_color_map);
         }
     }
 }
@@ -902,10 +808,10 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 
     if (app->gui_visible) {
         glViewport(app->gui_width * x_scale, 0, (width - app->gui_width * x_scale), height);
-        app->camera->set_aspect_ratio((float)(width - app->gui_width * x_scale) / (height));
+        if (app->camera) app->camera->set_aspect_ratio((float)(width - app->gui_width * x_scale) / (height));
     } else {
         glViewport(0, 0, width, height);
-        app->camera->set_aspect_ratio((float)width / height);
+        if (app->camera) app->camera->set_aspect_ratio((float)width / height);
     }
 }
 void cursor_pos_callback(GLFWwindow* window, double x, double y) {

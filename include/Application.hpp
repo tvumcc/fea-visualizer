@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <stb/stb_image.h>
 
+#include "Utils/AssetStorage.hpp"
 #include "Utils/BVH.hpp"
 #include "Utils/Camera.hpp"
 #include "Utils/ColorMap.hpp"
@@ -62,6 +63,7 @@ struct Settings {
         for (int i = 0; i < equations.size(); i++) {
             GLuint texture;
             int width, height, channels;
+            stbi_set_flip_vertically_on_load(false);
             unsigned char *data = stbi_load(std::format("assets/equations/{}_Equation.png", equations[i]).c_str(), &width, &height, &channels, 0);
             glGenTextures(1, &texture);
             glBindTexture(GL_TEXTURE_2D, texture);
@@ -78,6 +80,7 @@ struct Settings {
         for (int i = 0; i < color_maps.size(); i++) {
             GLuint texture;
             int width, height, channels;
+            stbi_set_flip_vertically_on_load(false);
             unsigned char *data = stbi_load(std::format("assets/cmap_icons/{}.png", color_maps[i]).c_str(), &width, &height, &channels, 0);
             glGenTextures(1, &texture);
             glBindTexture(GL_TEXTURE_2D, texture);
@@ -98,6 +101,7 @@ public:
     unsigned int gui_width = 275;
     bool gui_visible = true;
     Settings settings;
+    AssetStorage as;
 
     std::shared_ptr<Camera> camera;
     std::shared_ptr<GridInterface> grid_interface;
@@ -110,11 +114,6 @@ public:
     std::shared_ptr<Solver> solver;
     std::shared_ptr<CPUSolver> cpu_solver;
     std::shared_ptr<GPUSolver> gpu_solver;
-
-    ResourceManager<Mesh> meshes;
-    ResourceManager<AbstractShader> shaders;
-    ResourceManager<ColorMap> color_maps;
-    ResourceManager<EnvironmentMap> environment_maps;
 
     std::string fem_mesh_directory = "assets/fem_meshes";
     std::vector<std::filesystem::path> fem_mesh_obj_paths;

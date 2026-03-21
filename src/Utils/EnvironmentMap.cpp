@@ -10,18 +10,17 @@
 /**
  * Creates an EnvironmentMap from an HDRI (specified by file path)
  */
-EnvironmentMap::EnvironmentMap(const char* hdr_image_path) {
-    if (init_hdr_texture(hdr_image_path)) {
+EnvironmentMap::EnvironmentMap(float* hdr_data, int hdr_width, int hdr_height) {
+    if (hdr_data) {
         glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
+        init_hdr_texture(hdr_data, hdr_width, hdr_height);
         init_env_map();
         init_irradiance_map();
         init_prefilter_map();
         init_brdf_texture();
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    } else {
-        std::cout << "Failed to load HDR image: " << hdr_image_path << "\n";
     }
 }
 
@@ -62,11 +61,7 @@ void EnvironmentMap::use(std::shared_ptr<AbstractShader> shader) {
 /**
  * Loads in an HDR image from a file
  */
-bool EnvironmentMap::init_hdr_texture(const char* hdr_image_path) {
-    stbi_set_flip_vertically_on_load(true);
-    int width, height, num_components;
-    float* data = stbi_loadf(hdr_image_path, &width, &height, &num_components, 0);
-
+void EnvironmentMap::init_hdr_texture(float* data, int width, int height) {
     glGenTextures(1, &hdr_texture);
     glBindTexture(GL_TEXTURE_2D, hdr_texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
@@ -76,11 +71,7 @@ bool EnvironmentMap::init_hdr_texture(const char* hdr_image_path) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    bool valid = (bool)data;
-
     stbi_image_free(data);
-
-    return valid;
 }
 
 /**

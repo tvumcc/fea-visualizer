@@ -21,7 +21,7 @@ public:
     static inline std::shared_ptr<Mesh> cube_mesh = nullptr;
     static inline std::shared_ptr<Mesh> quad_mesh = nullptr;
 
-    EnvironmentMap(const char* hdr_image_path);
+    EnvironmentMap(float* hdr_data, int hdr_width, int hdr_height);
 
     void draw(std::shared_ptr<Camera> camera);
     void use(std::shared_ptr<AbstractShader> shader);
@@ -44,7 +44,7 @@ private:
         glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f))
     };
 
-    bool init_hdr_texture(const char* hdr_image_path);
+    void init_hdr_texture(float* data, int width, int height);
     void init_env_map();
     void init_irradiance_map();
     void init_prefilter_map();

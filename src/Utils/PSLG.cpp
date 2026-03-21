@@ -124,11 +124,9 @@ void PSLG::add_hole(glm::vec3 hole) {
  * Load in the stencil image with the given file path to an image
  */
 void PSLG::load_stencil_image(std::string path) {
-    std::cout << "loading image: " << path << "\n";
     int width, height, channels;
     stbi_set_flip_vertically_on_load(true);
     unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
-    std::cout << "Channels: " << channels << "\n";
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glGenTextures(1, &stencil_texture);

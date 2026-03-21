@@ -10,7 +10,7 @@ GPUSolver::GPUSolver(std::shared_ptr<FEMContext> fem_ctx) {
 }
 
 /**
- * Handles clean up of all of the SSBOs
+ * Handles clean up of all the SSBOs
  */
 GPUSolver::~GPUSolver() {
     glDeleteBuffers(1, &this->state);
