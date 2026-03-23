@@ -146,6 +146,8 @@ void main() {
         case 4: { // Reset all nodal values to 0
             if (globalID < N) {
                 values[globalID] = 0.0;
+                u[globalID] = 0.0;
+                v[globalID] = 0.0;
             }
         } break;
     }

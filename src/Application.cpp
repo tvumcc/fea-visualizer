@@ -97,6 +97,7 @@ void Application::render() {
     as.get_shader("fem_mesh")->set_float("pixel_discard_threshold", settings.pixel_discard_threshold);
     as.get_shader("wireframe")->bind();
     as.get_shader("wireframe")->set_float("vertex_extrusion", settings.vertex_extrusion);
+    as.get_shader("wireframe")->set_float("pixel_discard_threshold", settings.pixel_discard_threshold);
     surface->calculate_normals(settings.vertex_extrusion);
     surface->draw(settings.draw_surface_wireframe, settings.pixel_discard_threshold, camera->get_camera_position());
 
@@ -357,6 +358,15 @@ void Application::render_gui() {
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             ImGui::SetTooltip("Reset all nodal values to 0");
         if (ImGui::Checkbox("Use GPU", &settings.use_gpu)) switch_solver(settings.use_gpu);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("Use the GPU for computation.\nNOTE: The GPU solver sometimes needs different parameter values compared to the CPU solver for some equations");
+        if (settings.use_gpu) {
+            ImGui::Text("Max GPU Iterations");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+            ImGui::SliderInt("##Max GPU Iterations", &gpu_solver->max_iterations, 1, 15);
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                ImGui::SetTooltip("The maximum number of iterations to run the conjugate gradient method on the GPU every timestep.");
+        }
         switch (fem_ctx->equation) {
             case Equation::Heat: {
                 auto params = std::static_pointer_cast<HeatParameters>(fem_ctx->parameters[Equation::Heat]);

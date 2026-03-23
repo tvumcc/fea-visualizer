@@ -1,5 +1,8 @@
 #include "FEM/GPUSolver.hpp"
 
+#include <iostream>
+
+#define r_0_norm residual_norm_map[0]
 #define r_i_norm residual_norm_map[1]
 
 /**
@@ -251,7 +254,7 @@ void GPUSolver::load_matrices() {
     unsigned int N = fem_ctx->num_unknowns();
     unsigned int M = fem_ctx->num_max_nonzeros_per_row();
 
-    std::vector<unsigned int> indices_buffer = std::vector<unsigned int>(N * M, -1);
+    std::vector<int> indices_buffer = std::vector<int>(N * M, -1);
     std::vector<float> stiffness_buffer = std::vector<float>(N * M, 0.0f);
     std::vector<float> mass_buffer = std::vector<float>(N * M, 0.0f);
     std::vector<float> advection_buffer = std::vector<float>(N * M, 0.0f);
@@ -273,16 +276,16 @@ void GPUSolver::load_matrices() {
     }
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, matrix_indices);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(unsigned int), indices_buffer.data(), GL_STATIC_READ);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(int), indices_buffer.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, stiffness_matrix);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(float), stiffness_buffer.data(), GL_STATIC_READ);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(float), stiffness_buffer.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, mass_matrix);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(float), mass_buffer.data(), GL_STATIC_READ);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(float), mass_buffer.data(), GL_STATIC_DRAW);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, advection_matrix);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(float), advection_buffer.data(), GL_STATIC_READ);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, N * M * sizeof(float), advection_buffer.data(), GL_STATIC_DRAW);
 }
 
 /**
@@ -327,13 +330,33 @@ void GPUSolver::cgm() {
     dot_product(0);
 
     glFinish();
-    if (r_i_norm > 1e-8) {
+
+    int iteration = 0;
+    float epsilon = 1e-10;
+
+    while (r_i_norm > epsilon && iteration < max_iterations) {
         // Stage 1: Calculate dot(d_i, A * d_i), Store in d_iA_norm
         dot_product(1);
+        glFinish();
 
         // Stage 2: Update u and r
         cgm_compute_shader->set_int("stage", 2);
         cgm_compute_shader->dispatch_compute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+        glFinish();
+
+        // Stage 3: Calculate dot(r_(i+1), r_(i+1))
+        dot_product(3);
+        glFinish();
+
+        // Stage 4: Use the Gram-Schmidt constant to find the next search direction
+        cgm_compute_shader->set_int("stage", 4);
+        cgm_compute_shader->dispatch_compute(fem_ctx->num_unknowns() / 1024 + 1, 1, 1, GL_SHADER_STORAGE_BARRIER_BIT);
+        glFinish();
+
+        iteration++;
+        
+        if (r_i_norm <= epsilon * r_0_norm)
+            break;
     }
 }
 

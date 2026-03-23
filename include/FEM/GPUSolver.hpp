@@ -28,6 +28,8 @@ public:
     std::shared_ptr<ComputeShader> cgm_compute_shader;
     std::shared_ptr<ComputeShader> cgm_helper_compute_shader;
 
+    int max_iterations = 10;
+
     GPUSolver(std::shared_ptr<FEMContext> fem_ctx);
     ~GPUSolver();
 
