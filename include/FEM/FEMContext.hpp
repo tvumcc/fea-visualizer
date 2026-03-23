@@ -28,7 +28,7 @@ public:
     std::unordered_map<Equation, std::shared_ptr<EquationParameters>> parameters;
     std::vector<int> idx_map;
 
-    Equation equation = Equation::Heat;
+    Equation equation = Equation::Wave;
     BoundaryCondition boundary_condition = BoundaryCondition::Dirichlet;
 
     FEMContext();

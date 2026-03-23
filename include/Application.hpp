@@ -36,7 +36,7 @@ struct Settings {
     std::string error_message = "";
 
     bool draw_grid_interface = true;
-    bool draw_surface_wireframe = true;
+    bool draw_surface_wireframe = false;
 
     bool paused = false;
     bool use_gpu = false;

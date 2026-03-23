@@ -37,7 +37,7 @@ void Application::load() {
     settings.init_equation_textures();
     settings.init_color_map_icon_textures();
 
-    camera = std::make_shared<Camera>();
+    camera = std::make_shared<Camera>(glm::vec3(0.0, 0.0, 0.0), 1.0, 3.5, 135.0, 15.0);
     framebuffer_size_callback(window, window_width, window_height);
 
     grid_interface = std::make_shared<GridInterface>();
@@ -69,6 +69,7 @@ void Application::load() {
     env_map = as.get_environment_map("lakeside");
 
     std::cout << glGetString(GL_VERSION) << "\n";
+    init_surface_from_obj("assets/fem_meshes/icosphere.obj");
 }
 
 /**
@@ -254,7 +255,7 @@ void Application::render_gui() {
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             ImGui::SetTooltip("Export the mesh with the current settings for vertex extrusion, discard threshold, color map, mesh type");
         ImGui::SameLine();
-        if (ImGui::Button("Delete Surface", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) delete_surface();
+        if (ImGui::Button("New Surface", ImVec2(ImGui::GetContentRegionAvail().x, 0.0))) delete_surface();
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             ImGui::SetTooltip("Remove the currently initialized surface to create a new one");
 
