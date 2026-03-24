@@ -4,7 +4,7 @@ This project solves time-dependent partial differential equations (PDEs) on comp
 
 ### Features
 - Creating simulation domains either by loading a 3D mesh from a file or drawing a planar straight line graph (PSLG) to triangulate into a planar mesh.
-- CPU solver using [Eigen](https://libeigen.gitlab.io/) and a GPU solver using my implementation of the conjugate gradient method with compute shaders
+- CPU solver using [Eigen](https://libeigen.gitlab.io/) and an experimental GPU solver using my implementation of the conjugate gradient method with compute shaders
 - Exporting the final mesh to a .ply file with extruded vertex positions and color mapped vertex colors
 - Drawing initial conditions directly on a surface using the mouse
 

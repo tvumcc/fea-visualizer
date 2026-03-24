@@ -148,6 +148,7 @@ void EnvironmentMap::init_irradiance_map() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         cube_mesh->draw(*irradiance_convolution_shader, GL_TRIANGLES);
     }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 /**
@@ -189,6 +190,7 @@ void EnvironmentMap::init_prefilter_map() {
             cube_mesh->draw(*prefilter_convolution_shader, GL_TRIANGLES);
         }
     }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 /**
@@ -212,4 +214,5 @@ void EnvironmentMap::init_brdf_texture() {
     brdf_convolution_shader->bind();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     quad_mesh->draw(*brdf_convolution_shader, GL_TRIANGLES);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

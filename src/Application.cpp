@@ -38,7 +38,9 @@ void Application::load() {
     settings.init_color_map_icon_textures();
 
     camera = std::make_shared<Camera>(glm::vec3(0.0, 0.0, 0.0), 1.0, 3.5, 135.0, 15.0);
-    framebuffer_size_callback(window, window_width, window_height);
+    int fb_width, fb_height;
+    glfwGetFramebufferSize(window, &fb_width, &fb_height);
+    framebuffer_size_callback(window, fb_width, fb_height);
 
     grid_interface = std::make_shared<GridInterface>();
     grid_interface->solid_color_shader = as.get_shader("solid_color");
@@ -358,9 +360,9 @@ void Application::render_gui() {
         if (ImGui::Button("Clear Solver", ImVec2(ImGui::GetContentRegionAvail().x, 0.0)))  clear_solver();
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             ImGui::SetTooltip("Reset all nodal values to 0");
-        if (ImGui::Checkbox("Use GPU", &settings.use_gpu)) switch_solver(settings.use_gpu);
+        if (ImGui::Checkbox("Use GPU (Experimental)", &settings.use_gpu)) switch_solver(settings.use_gpu);
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-            ImGui::SetTooltip("Use the GPU for computation.\nNOTE: The GPU solver sometimes needs different parameter values compared to the CPU solver for some equations");
+            ImGui::SetTooltip("Use the GPU for computation. (Experimental Feature)\nNOTE: The GPU solver sometimes needs different parameter values compared to the CPU solver for some equations");
         if (settings.use_gpu) {
             ImGui::Text("Max GPU Iterations");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
@@ -731,14 +733,14 @@ glm::vec3 Application::get_world_ray_from_mouse() {
     double x_pos, y_pos;
     glfwGetCursorPos(window, &x_pos, &y_pos);
 
+    int win_width, win_height;
+    glfwGetWindowSize(window, &win_width, &win_height);
+
     if (gui_visible) x_pos -= gui_width;
+    float logical_viewport_width = win_width - (gui_visible ? gui_width : 0);
+    float logical_viewport_height = win_height;
 
-    float x_scale, y_scale;
-    glfwGetWindowContentScale(window, &x_scale, &y_scale);
-    x_pos *= x_scale;
-    y_pos *= y_scale;
-
-    glm::vec3 nds_ray = glm::vec3((2.0f * x_pos) / (window_width - (gui_visible ? gui_width * x_scale : 0)) - 1.0f, 1.0f - (2.0f * y_pos) / window_height, 1.0f);
+    glm::vec3 nds_ray = glm::vec3((2.0f * x_pos) / logical_viewport_width - 1.0f, 1.0f - (2.0f * y_pos) / logical_viewport_height, 1.0f);
     glm::vec4 clip_ray = glm::vec4(nds_ray.x, nds_ray.y, -1.0f, 1.0f);
     glm::vec4 eye_ray = glm::inverse(camera->get_projection_matrix()) * clip_ray;
     eye_ray = glm::vec4(eye_ray.x, eye_ray.y, -1.0, 0.0f);
@@ -785,11 +787,6 @@ void Application::init_opengl_window(unsigned int window_width, unsigned int win
         images[0].height = height;
         glfwSetWindowIcon(window, 1, images);
     }
-
-    float x_scale, y_scale;
-    glfwGetWindowContentScale(window, &x_scale, &y_scale);
-    this->window_width *= x_scale;
-    this->window_height *= y_scale;
 }
 void Application::set_glfw_callbacks() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -811,16 +808,17 @@ void Application::init_imgui(const char* font_path, int font_size) {
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
-	
-	float x_scale, y_scale;
-	glfwGetWindowContentScale(window, &x_scale, &y_scale);
-
 	app->window_width = width;
 	app->window_height = height;
 
+    int win_width, win_height;
+    glfwGetWindowSize(window, &win_width, &win_height);
+    float x_scale = (float)width / (float)win_width;
+    int physical_gui_width = (int)(app->gui_width * x_scale);
+
     if (app->gui_visible) {
-        glViewport(app->gui_width * x_scale, 0, (width - app->gui_width * x_scale), height);
-        if (app->camera) app->camera->set_aspect_ratio((float)(width - app->gui_width * x_scale) / (height));
+        glViewport(physical_gui_width, 0, (width - physical_gui_width), height);
+        if (app->camera) app->camera->set_aspect_ratio((float)(width - physical_gui_width) / (height));
     } else {
         glViewport(0, 0, width, height);
         if (app->camera) app->camera->set_aspect_ratio((float)width / height);

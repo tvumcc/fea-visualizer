@@ -9,7 +9,6 @@
 #include <memory>
 #include <thread>
 #include <chrono>
-#include <future>
 #include <iostream>
 #include <unordered_map>
 #include <string>
@@ -230,25 +229,11 @@ void AssetStorage::load_environment_maps() {
 }
 
 void AssetStorage::load_environment_map(const char* name, const char* hdr_image_path, float min_progress, float max_progress) {
-    struct HDRFuture {
-        float* data;
-        int width;
-        int height;
-    };
+    stbi_set_flip_vertically_on_load(true);
+    int width, height, num_components;
+    float* data = stbi_loadf(hdr_image_path, &width, &height, &num_components, 0);
+    render_loading_screen(0.5f * (min_progress + max_progress), "Loading Environment Maps");
 
-    std::future<HDRFuture> future = std::async(std::launch::async, [&]() {
-        stbi_set_flip_vertically_on_load(true);
-        int width, height, num_components;
-        float* data = stbi_loadf(hdr_image_path, &width, &height, &num_components, 0);
-        return HDRFuture {data, width, height};
-    });
-
-    while (future.wait_for(std::chrono::milliseconds(20)) != std::future_status::ready) {
-        render_loading_screen(0.5f * (min_progress + max_progress), "Loading Environment Maps");
-    }
-
-    HDRFuture future_data = future.get();
-    if (future_data.data) {
-        environment_maps.add("lakeside", std::make_shared<EnvironmentMap>(future_data.data, future_data.width, future_data.height));
-    }
+    if (data)
+        environment_maps.add("lakeside", std::make_shared<EnvironmentMap>(data, width, height));
 }
