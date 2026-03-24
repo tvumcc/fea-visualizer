@@ -309,6 +309,7 @@ void Application::render_gui() {
             ImGui::Text("Boundary Conditions");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
             if (ImGui::Combo("##Boundary Conditions", (int*)&fem_ctx->boundary_condition, "Dirichlet\0Neumann\0", ImGuiComboFlags_WidthFitPreview)) {
+                clear_solver();
                 fem_ctx->update_boundary_conditions();
             }
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
