@@ -16,6 +16,10 @@ This project solves time-dependent partial differential equations (PDEs) on comp
 #### Wave Equation on a sphere:
 
 
+https://github.com/user-attachments/assets/aeeb6eb3-278e-4a6c-8683-58ab143ddf0a
+
+
+
 ## Installation
 Builds for Windows and Linux are available in the [Releases](https://github.com/tvumcc/fea-visualizer/releases) tab.
 
