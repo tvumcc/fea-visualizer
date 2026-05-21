@@ -65,7 +65,7 @@ void main() {
                         if (idx_map[globalID] != -1) u[idx_map[globalID]] = values[globalID];
                         break;
                     case 3: // Gray-Scott Reaction-Diffusion Equation (Step 1)
-                    case 4: // Gray-Scott Reaction-Diffusion Equation (Step 2)
+                    case 4:
                         if (idx_map[globalID] != -1) v[idx_map[globalID]] = values[globalID];
                         break;
                 }
@@ -94,15 +94,21 @@ void main() {
                                 Ax_i += v[col_idx] * (mass[mat_idx] / time_step + c * c * stiffness[mat_idx] * time_step);
                             } break;
                             case 3: { // Gray-Scott Reaction-Diffusion Equation (Step 1)
-                                b_i += u[col_idx] * (mass[mat_idx] / time_step) - u[col_idx] * v[col_idx] * v[col_idx] + feed_rate * (1.0 - u[col_idx]);
+                                b_i += u[col_idx] * (mass[mat_idx] / time_step);
                                 Ax_i += u[col_idx] * (mass[mat_idx] / time_step + Du * stiffness[mat_idx]);
                             } break;
                             case 4: { // Gray-Scott Reaction-Diffusion Equation (Step 2)
-                                b_i += v[col_idx] * (mass[mat_idx] / time_step) + u[col_idx] * v[col_idx] * v[col_idx] - v[col_idx] * (feed_rate + kill_rate);
+                                b_i += v[col_idx] * (mass[mat_idx] / time_step);
                                 Ax_i += v[col_idx] * (mass[mat_idx] / time_step + Dv * stiffness[mat_idx]);
                             } break;
                         }
                     }
+                }
+
+                if (equation == 3) {
+                    b_i += -(u[globalID] * v[globalID] * v[globalID]) + feed_rate * (1.0 - u[globalID]);
+                } else if (equation == 4) {
+                    b_i += u[globalID] * v[globalID] * v[globalID] - v[globalID] * (feed_rate + kill_rate);
                 }
 
                 b[globalID] = b_i;
@@ -132,9 +138,8 @@ void main() {
                     case 2: // Wave Equation
                         values[globalID] = idx_map[globalID] != -1 ? u[idx_map[globalID]] : 0.0;
                         break;
-                    case 3: // Gray-Scott Reaction-Diffusion Equation (Step 1)
                     case 4: // Gray-Scott Reaction-Diffusion Equation (Step 2)
-                        values[globalID] = v[idx_map[globalID]];
+                        values[globalID] = idx_map[globalID] != -1 ? v[idx_map[globalID]] : 0.0;
                         break;
                 }
 

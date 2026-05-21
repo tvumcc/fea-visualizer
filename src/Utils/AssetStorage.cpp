@@ -198,6 +198,18 @@ void AssetStorage::load_color_maps() {
             glm::vec3(0.694723,-25.863102,-4.558659),
         })
     ));
+    color_maps.add("FrutigerAero", std::make_shared<ColorMap>(
+        "FrutigerAero",
+        std::array<glm::vec3, 7>({
+            glm::vec3( 0.910000,  0.969000,  1.000000),
+            glm::vec3(-1.980000, -0.381000, -0.395000),
+            glm::vec3( 2.540000, -1.063000, -1.275000),
+            glm::vec3(-5.820000,  2.340000,  2.160000),
+            glm::vec3( 6.190000, -2.180000, -2.060000),
+            glm::vec3(-2.480000,  0.760000,  0.660000),
+            glm::vec3( 0.000000,  0.000000,  0.000000),
+        })
+    ));
 }
 
 void AssetStorage::load_environment_maps() {

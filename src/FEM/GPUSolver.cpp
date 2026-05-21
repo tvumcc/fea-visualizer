@@ -332,9 +332,13 @@ void GPUSolver::cgm() {
     glFinish();
 
     int iteration = 0;
-    float epsilon = 1e-10;
+    float epsilon = 1e-9;
 
-    while (r_i_norm > epsilon && iteration < max_iterations) {
+    if (r_i_norm < epsilon) {
+        return;
+    }
+
+    while (iteration < max_iterations) {
         // Stage 1: Calculate dot(d_i, A * d_i), Store in d_iA_norm
         dot_product(1);
         glFinish();
@@ -355,9 +359,12 @@ void GPUSolver::cgm() {
 
         iteration++;
         
-        if (r_i_norm <= epsilon * r_0_norm)
-            break;
+        // if (r_i_norm <= epsilon * r_0_norm)
+        //     break;
     }
+    
+    glFinish();
+    std::cout << "GPU Iterations: " << iteration << "\n";
 }
 
 void GPUSolver::cgm_cleanup() {

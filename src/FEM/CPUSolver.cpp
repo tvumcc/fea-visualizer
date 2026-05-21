@@ -1,4 +1,5 @@
 #include "FEM/CPUSolver.hpp"
+#include <iostream>
 
 /**
  * Creates a CPUSolver that points to a FEMContext
@@ -62,7 +63,7 @@ void CPUSolver::clear_values() {
  * Advance time by one time step based on the selected equation in the associated FEMContext
  */
 void CPUSolver::advance_time() {
-    Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower|Eigen::Upper> cg;
+    Eigen::ConjugateGradient<Eigen::SparseMatrix<float>, Eigen::Lower|Eigen::Upper, Eigen::IdentityPreconditioner> cg;
 
     switch (fem_ctx->equation) {
         /**
@@ -137,11 +138,13 @@ void CPUSolver::advance_time() {
             Eigen::VectorXf b_v = (fem_ctx->mass_matrix / params->time_step) * v + (u.cwiseProduct(v.cwiseProduct(v))) - (params->feed_rate + params->kill_rate) * v;
 
             cg.compute(A_u);
-            u = cg.solve(b_u);
+            u = cg.solveWithGuess(b_u, u);
             cg.compute(A_v);
-            v = cg.solve(b_v);
+            v = cg.solveWithGuess(b_v, v);
 
             map_vector_to_surface(v);
         } break;
     }
+
+    std::cout << "Iterations: " << cg.iterations() << "\n";
 }
